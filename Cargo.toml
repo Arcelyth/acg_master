@@ -1,0 +1,10 @@
+[package]
+name = "anime_master"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+leptos = { version = "0.8.19", features = ["csr"] }
+leptos_meta = "0.8.6"
+leptos_router = "0.8.13"
