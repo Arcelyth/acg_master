@@ -6,6 +6,7 @@ use stylance::import_style;
 mod components;
 mod config;
 mod pages;
+mod items;
 
 use crate::components::header;
 use crate::config::Config;

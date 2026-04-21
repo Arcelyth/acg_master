@@ -1,17 +1,49 @@
-.single {
-
+main {
+  width: 70%;
+  display: flex; 
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1.8rem;
+  padding: 1rem;
 }
 
 .top_section {
-
+  width: 100%;
+  justify-content: flex-start;
+  align-items: center;
 }
 
 .interact_section {
+  display: flex;
+  width: 100%;
+  padding: 2rem;
+  justify-content: flex-start;
+  align-items: center;
 
+  .input_section {
+    width: 50%;
+    padding: 0.8rem;
+    justify-content: flex-start;
+    align-items: center;
+  }
+
+  .button_section {
+    width: 40%;
+    padding: 0.8rem;
+    justify-content: flex-start;
+    align-items: center;
+
+  }
 }
 
 .display_section {
-
+  display: flex;
+  width: 100%;
+  padding: 1rem;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 .bottom_section {

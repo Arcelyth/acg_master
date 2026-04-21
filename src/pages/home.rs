@@ -37,8 +37,21 @@ pub fn Home() -> impl IntoView {
                 </ul>
             }
         }>
-            <div>Home</div>
-            <JmpBtn text=play_text url="/single".to_string()/>
+            <main>
+                <div 
+                    class=styles::title_container
+                >
+                    <span class=styles::title> 标题 </span>
+                </div>
+                <JmpBtn text=play_text url="/single".to_string()/>
+                <div
+                >
+                    <p class=styles::rules> 
+                        Rules: 
+                        enasetaneisatenisateinase
+                    </p>
+                </div>
+            </main>
         </ErrorBoundary>
     }
 }
