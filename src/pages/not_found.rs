@@ -2,12 +2,10 @@ use leptos::prelude::*;
 
 use stylance::import_crate_style;
 
-import_crate_style!(styles, "./src/pages/styles/home.module.scss");
+import_crate_style!(styles, "./src/pages/styles/not_found.module.scss");
 
 #[component]
-pub fn Home() -> impl IntoView {
-    
-   
+pub fn NotFound() -> impl IntoView {
     view! {
         <ErrorBoundary fallback=|errors| {
             view! {
@@ -25,8 +23,7 @@ pub fn Home() -> impl IntoView {
                 </ul>
             }
         }>
-            <div>Home</div> 
-            <a href="/single">"Single Play"</a>
+           <div>Not Found</div> 
         </ErrorBoundary>
     }
 }

@@ -8,3 +8,11 @@ console_error_panic_hook = "0.1.7"
 leptos = { version = "0.8.19", features = ["csr"] }
 leptos_meta = "0.8.6"
 leptos_router = "0.8.13"
+stylance = "0.8.0"
+web-sys = { version = "0.3.95", features = ["Navigator"]}
+
+[package.metadata.stylance]
+output_file = "./style/bundled.css"
+folders = ["./src/"]
+extensions = [".module.scss", ".module.css"]
+workspace = false
