@@ -1,6 +1,90 @@
-.card {
-  width: 100%;
-  margin: 1rem;
-  padding: 1rem;
+.card_container {
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    padding: 16px;
+    background-color: #ffffff;
+    border: 1px solid #eaeaea;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    transition: border-color 0.2s ease;
+}
 
+.card_container:hover {
+    border-color: #cccccc;
+}
+
+.card_image {
+    flex-shrink: 0;
+    width: 100px;
+    height: 140px;
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: #f5f5f5;
+}
+
+.card_image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.card_content {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 12px;
+    flex-grow: 1;
+}
+
+.info_row, .tag_row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.status_correct,
+.status_close,
+.status_wrong,
+.meta_badge,
+.tag_item {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    line-height: 1.2;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+}
+
+.status_correct {
+    background-color: #eef8f2;
+    color: #277b4c;
+    border-color: #d1ebd8;
+}
+
+.status_close {
+    background-color: #fff9ed;
+    color: #9c6c19;
+    border-color: #f7e6ca;
+}
+
+.status_wrong {
+    background-color: #f7f7f7;
+    color: #666666;
+    border-color: #eeeeee;
+}
+
+.meta_badge {
+    background-color: #f0f0f0;
+    color: #333333;
+    font-weight: 500;
+}
+
+.tag_item {
+    background-color: #ffffff;
+    color: #888888;
+    border-color: #e0e0e0;
+    font-size: 12px;
 }
