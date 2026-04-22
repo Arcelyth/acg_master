@@ -33,6 +33,7 @@ pub fn Single() -> impl IntoView {
 
     let (guess_time, set_guess_time) = signal(0usize);
     let (game_state, set_game_state) = signal(GameState::Loading);
+    let (dup, set_dup) = signal(false);
 
     let (cards, set_cards) = signal::<Vec<BangumiSubject>>(vec![]);
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
@@ -77,6 +78,7 @@ pub fn Single() -> impl IntoView {
     };
 
     let add_selected_or_first = move || {
+        set_dup.set(false);
         let items = unique_search_results();
         if items.is_empty() {
             return;
@@ -86,14 +88,26 @@ pub fn Single() -> impl IntoView {
         let target = items.get(current_idx).or(items.first()).cloned();
 
         if let Some(subject) = target {
-            set_cards.update(|c| c.push(subject));
+            let exists = cards.get_untracked().iter().any(|c| c.id == subject.id);
+            if exists {
+                set_dup.set(true);
+                return;
+            }
+            set_cards.update(|c| c.push(subject.clone()));
             set_user_input.set("".to_string());
             set_selected_dropdown_index.set(0);
-        }
-        let ans_len = cards.get().len();
-        set_guess_time.update(|gt| *gt = ans_len);
-        if ans_len >= config.get().max_guess {
-            set_game_state.update(|gs| *gs = GameState::Lose);
+            let ans_len = cards.get().len();
+            set_guess_time.set(ans_len);
+            if let Some(Some(actual_answer)) = answer.get_untracked() {
+                if is_guess_right(&subject, &actual_answer) {
+                    set_game_state.set(GameState::Win);
+                    return;
+                }
+            }
+
+            if ans_len >= config.get().max_guess {
+                set_game_state.set(GameState::Lose);
+            }
         }
     };
 
@@ -157,6 +171,13 @@ pub fn Single() -> impl IntoView {
                                 on:keydown=on_keydown
                             />
                         </div>
+                        {move || {
+                            if dup.get() {
+                                view! { <div><span class=styles::dup_message>"已在列表中"</span></div> }
+                            } else {
+                                view! { <div><div style="display:none"></div></div> }
+                            }
+                        }}
 
                         // the float list
                         {move || {
@@ -249,25 +270,34 @@ pub fn Single() -> impl IntoView {
                     </Suspense>
                 </div>
 
-
                 <div class=styles::answer_reveal_section>
                     {move || {
                         let state = game_state.get();
                         if state == GameState::Win || state == GameState::Lose {
+                            let (status_text, status_class) = match state {
+                                GameState::Win => ("？！强强！？", styles::status_win),
+                                GameState::Lose => ("？！弱弱！？", styles::status_lose),
+                                _ => ("", ""),
+                            };
+
                             view! {
                                 <div>
-                                <div class=styles::reveal_container>
-                                    <hr class=styles::divider />
-                                    <p class=styles::reveal_text> "ANSWER" </p>
-                                    <Suspense fallback=|| view! { "..." }>
-                                        {move || Suspend::new(async move {
-                                            match answer.await {
-                                                Some(a) => view! {<div> <Card info=a.clone() answer=a/> </div>},
-                                                None => view! { <div>"Nothing"</div> }
-                                            }
-                                        })}
-                                    </Suspense>
-                                </div>
+                                    <div class=styles::reveal_container>
+                                        <h2 class=status_class>{status_text}</h2>
+                                        <h4 class=status_class>{guess_time}/{config.get().max_guess}</h4>
+
+                                        <hr class=styles::divider />
+                                        <p class=styles::reveal_text> "ANSWER" </p>
+
+                                        <Suspense fallback=|| view! { "..." }>
+                                            {move || Suspend::new(async move {
+                                                match answer.await {
+                                                    Some(a) => view! {<div> <Card info=a.clone() answer=a/> </div>},
+                                                    None => view! { <div>"Nothing"</div> }
+                                                }
+                                            })}
+                                        </Suspense>
+                                    </div>
                                 </div>
                             }
                         } else {

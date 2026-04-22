@@ -166,3 +166,11 @@ pub fn compare_anime(guess: &BangumiSubject, answer: &BangumiSubject) -> Compare
         wrong,
     }
 }
+
+pub fn is_guess_right(guess: &BangumiSubject, answer: &BangumiSubject) -> bool {
+    if guess.name == answer.name || guess.name_cn == answer.name_cn {
+        true
+    } else {
+        false
+    }
+}

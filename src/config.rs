@@ -16,7 +16,7 @@ impl Config {
         Self {
             theme_dark: false,
             lang: detect_lang(),
-            max_guess: 10,
+            max_guess: 5,
         }
     }
 }

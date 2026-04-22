@@ -166,3 +166,25 @@
 .bottom_section {
   margin-top: 48px;
 }
+
+.dup_message {
+  color: red;
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+.status_win {
+    color: #4caf50;
+    font-size: 2rem;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.status_lose {
+    color: #f44336;
+    font-size: 2rem;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
