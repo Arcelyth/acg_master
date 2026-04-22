@@ -1,5 +1,4 @@
 use rand::prelude::*;
-use rand::seq::SliceRandom;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -22,6 +21,7 @@ pub struct BangumiTags {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BangumiSubject {
     pub id: usize,
+    #[serde(default, deserialize_with = "deserialize_null_to_empty")]
     pub date: String,
     pub image: String,
     pub summary: String,
@@ -34,6 +34,13 @@ pub struct BangumiSubject {
     pub meta_tags: Vec<String>,
     #[serde(rename = "type")]
     pub kind: usize,
+}
+
+fn deserialize_null_to_empty<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Option::<String>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -59,7 +66,8 @@ pub async fn bangumi_search(keyword: String) -> Option<Vec<BangumiSubject>> {
         "filter": {
             "type": [2],
             "meta_tags": [
-                "TV"
+                "TV",
+                "日本"
             ]
         }
     });
@@ -93,7 +101,8 @@ pub async fn fetch_random_anime() -> Option<BangumiSubject> {
          "filter": {
              "type": [2],
              "meta_tags": [
-                 "TV"
+                 "TV",
+                 "日本"
              ]
          },
          "limit": 1,
@@ -116,19 +125,28 @@ pub async fn fetch_random_anime() -> Option<BangumiSubject> {
     None
 }
 
-
-
 pub fn compare_anime(guess: &BangumiSubject, answer: &BangumiSubject) -> CompareResult {
     let mut correct = HashSet::new();
     let mut close = HashSet::new();
     let mut wrong = HashSet::new();
 
-    if guess.name == answer.name { correct.insert("name".to_string()); } else { wrong.insert("name".to_string()); }
-    if guess.name_cn == answer.name_cn { correct.insert("name_cn".to_string()); } else { wrong.insert("name_cn".to_string()); }
+    if guess.name == answer.name {
+        correct.insert("name".to_string());
+    } else {
+        wrong.insert("name".to_string());
+    }
+    if guess.name_cn == answer.name_cn {
+        correct.insert("name_cn".to_string());
+    } else {
+        wrong.insert("name_cn".to_string());
+    }
 
     if guess.date == answer.date {
         correct.insert("date".to_string());
-    } else if !guess.date.is_empty() && !answer.date.is_empty() && &guess.date[0..4] == &answer.date[0..4] {
+    } else if !guess.date.is_empty()
+        && !answer.date.is_empty()
+        && &guess.date[0..4] == &answer.date[0..4]
+    {
         close.insert("date".to_string());
     } else {
         wrong.insert("date".to_string());
@@ -142,5 +160,9 @@ pub fn compare_anime(guess: &BangumiSubject, answer: &BangumiSubject) -> Compare
         wrong.insert("total_episodes".to_string());
     }
 
-    CompareResult { correct, close, wrong }
+    CompareResult {
+        correct,
+        close,
+        wrong,
+    }
 }

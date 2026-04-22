@@ -12,6 +12,14 @@ use crate::components::card::Card;
 use crate::components::jmp_btn::JmpBtn;
 use crate::config::{Config, Language};
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum GameState {
+    Loading,
+    Playing,
+    Win,
+    Lose,
+}
+
 #[component]
 pub fn Single() -> impl IntoView {
     let config = use_context::<ReadSignal<Config>>().expect("reader");
@@ -23,7 +31,21 @@ pub fn Single() -> impl IntoView {
     let (input_focused, set_input_focused) = signal(false);
     let (selected_dropdown_index, set_selected_dropdown_index) = signal(0usize);
 
+    let (guess_time, set_guess_time) = signal(0usize);
+    let (game_state, set_game_state) = signal(GameState::Loading);
+
     let (cards, set_cards) = signal::<Vec<BangumiSubject>>(vec![]);
+    let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
+    let answer = LocalResource::new(move || fetch_random_anime());
+
+    // Loading -> Playing
+    Effect::new(move |_| {
+        if let Some(Some(_)) = answer.get() {
+            if game_state.get_untracked() == GameState::Loading {
+                set_game_state.set(GameState::Playing);
+            }
+        }
+    });
 
     // debounce
     Effect::new(move |_| {
@@ -40,22 +62,9 @@ pub fn Single() -> impl IntoView {
         });
     });
 
-    let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
-    let answer = LocalResource::new(move || fetch_random_anime());
-
-    provide_context(answer);
-
     let texts = move || match config.get().lang {
-        Language::Chinese => (
-            "返回",
-            "输入你的答案",
-            "发送",
-        ),
-        Language::English => (
-            "Back",
-            "Input your answer",
-            "Send",
-        ),
+        Language::Chinese => ("返回", "输入你的答案", "发送"),
+        Language::English => ("Back", "Input your answer", "Send"),
     };
 
     let unique_search_results = move || {
@@ -81,6 +90,11 @@ pub fn Single() -> impl IntoView {
             set_user_input.set("".to_string());
             set_selected_dropdown_index.set(0);
         }
+        let ans_len = cards.get().len();
+        set_guess_time.update(|gt| *gt = ans_len);
+        if ans_len >= config.get().max_guess {
+            set_game_state.update(|gs| *gs = GameState::Lose);
+        }
     };
 
     let on_keydown = move |ev: leptos::web_sys::KeyboardEvent| {
@@ -97,21 +111,23 @@ pub fn Single() -> impl IntoView {
                 ev.prevent_default();
                 let next = if current >= max_idx { 0 } else { current + 1 };
                 set_selected_dropdown_index.set(next);
-                set_user_input.set(items[next].name_cn.clone());
             }
             "ArrowUp" => {
                 ev.prevent_default();
                 let prev = if current == 0 { max_idx } else { current - 1 };
                 set_selected_dropdown_index.set(prev);
-                set_user_input.set(items[prev].name_cn.clone());
             }
             "Enter" => {
                 ev.prevent_default();
-                add_selected_or_first();
+                if let Some(item) = items.get(current) {
+                    set_user_input.set(item.name_cn.clone());
+                }
             }
             _ => {}
         }
     };
+
+    let is_interaction_disabled = move || game_state.get() != GameState::Playing;
 
     view! {
         <ErrorBoundary fallback=|errors| {
@@ -124,15 +140,17 @@ pub fn Single() -> impl IntoView {
         }>
             <main>
                 <div class=styles::top_section>
+                    // return button
                     <JmpBtn text={move || texts().0} url="/".to_string()/>
                 </div>
 
                 <div class=styles::interact_section>
                     <div class=styles::search_wrapper>
                         <div class=styles::input_section>
-                            <span> {move || texts().1} </span>
+                            <span> {move || texts().1}: </span>
                             <input
                                 type="text"
+                                disabled=is_interaction_disabled
                                 bind:value=(user_input, set_user_input)
                                 on:focus=move |_| set_input_focused.set(true)
                                 on:blur=move |_| set_input_focused.set(false)
@@ -181,11 +199,20 @@ pub fn Single() -> impl IntoView {
                     </div>
 
                     <div class=styles::button_section>
-                        <button on:click=move |_| add_selected_or_first()> {move || texts().2} </button>
+                        // send buttons
+                        <button
+                            disabled=is_interaction_disabled
+                            on:click=move |_| add_selected_or_first()
+                        >
+                            {move || texts().2}
+                        </button>
+                    </div>
+                    <div class=styles::guess_number>
+                        <span> {guess_time}/{config.get().max_guess} </span>
                     </div>
                 </div>
 
-                <Suspense fallback=move || view! {<p>"Loading answer..."</p>}>
+                <Suspense fallback=move || view! {<p>"Loading..."</p>}>
                     {move || Suspend::new(async move {
                         match answer.await {
                             Some(a) => view! { <div> <Card info=a.clone() answer=a/> </div> }.into_view(),
@@ -196,7 +223,7 @@ pub fn Single() -> impl IntoView {
 
                 // all the answers
                 <div class=styles::display_section>
-                    <Suspense fallback=move || view! {<p>"Loading Results..."</p>}>
+                    <Suspense fallback=move || view! {<p>"Loading..."</p>}>
                         {move || Suspend::new(async move {
                             let ans_opt = answer.await;
                             match ans_opt {
@@ -220,6 +247,33 @@ pub fn Single() -> impl IntoView {
                             }
                         })}
                     </Suspense>
+                </div>
+
+
+                <div class=styles::answer_reveal_section>
+                    {move || {
+                        let state = game_state.get();
+                        if state == GameState::Win || state == GameState::Lose {
+                            view! {
+                                <div>
+                                <div class=styles::reveal_container>
+                                    <hr class=styles::divider />
+                                    <p class=styles::reveal_text> "ANSWER" </p>
+                                    <Suspense fallback=|| view! { "..." }>
+                                        {move || Suspend::new(async move {
+                                            match answer.await {
+                                                Some(a) => view! {<div> <Card info=a.clone() answer=a/> </div>},
+                                                None => view! { <div>"Nothing"</div> }
+                                            }
+                                        })}
+                                    </Suspense>
+                                </div>
+                                </div>
+                            }
+                        } else {
+                            view! { <div><div style="display:none"></div></div> }
+                        }
+                    }}
                 </div>
 
                 <div class=styles::bottom_section></div>

@@ -8,6 +8,7 @@ pub enum Language {
 pub struct Config {
     pub theme_dark: bool,
     pub lang: Language,
+    pub max_guess: usize,
 }
 
 impl Config {
@@ -15,6 +16,7 @@ impl Config {
         Self {
             theme_dark: false,
             lang: detect_lang(),
+            max_guess: 10,
         }
     }
 }
