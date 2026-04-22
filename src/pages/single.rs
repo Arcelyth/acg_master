@@ -37,7 +37,12 @@ pub fn Single() -> impl IntoView {
 
     let (cards, set_cards) = signal::<Vec<BangumiSubject>>(vec![]);
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
-    let answer = LocalResource::new(move || fetch_random_anime());
+    let (refresh_trigger, set_refresh_trigger) = signal(0);
+    let answer = LocalResource::new(move || {
+        refresh_trigger.get();
+        fetch_random_anime()
+    });
+
 
     // Loading -> Playing
     Effect::new(move |_| {
@@ -143,6 +148,17 @@ pub fn Single() -> impl IntoView {
 
     let is_interaction_disabled = move || game_state.get() != GameState::Playing;
 
+    let reset_game = move |_| {
+        set_cards.set(vec![]);
+        set_guess_time.set(0);
+        set_user_input.set("".to_string());
+        set_dup.set(false);
+
+        set_game_state.set(GameState::Loading);
+
+        set_refresh_trigger.update(|n| *n += 1);
+    };
+
     view! {
         <ErrorBoundary fallback=|errors| {
             view! {
@@ -227,7 +243,12 @@ pub fn Single() -> impl IntoView {
                         >
                             {move || texts().2}
                         </button>
-                    </div>
+                        // reset button
+                        <button
+                            class=styles::reset_btn
+                            on:click=reset_game
+                        > </button>
+                        </div>
                     <div class=styles::guess_number>
                         <span> {guess_time}/{config.get().max_guess} </span>
                     </div>
@@ -285,7 +306,10 @@ pub fn Single() -> impl IntoView {
                                     <div class=styles::reveal_container>
                                         <h2 class=status_class>{status_text}</h2>
                                         <h4 class=status_class>{guess_time}/{config.get().max_guess}</h4>
-
+                                        <button
+                                            class=styles::reset_btn
+                                            on:click=reset_game
+                                        > </button>
                                         <hr class=styles::divider />
                                         <p class=styles::reveal_text> "ANSWER" </p>
 
