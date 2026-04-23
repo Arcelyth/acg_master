@@ -60,6 +60,7 @@ pub struct SubjectImages {
 #[allow(dead_code)]
 pub struct CompareResult {
     pub correct: HashSet<String>,
+    pub almost: HashSet<String>,
     pub close: HashSet<String>,
     pub wrong: HashSet<String>,
     pub answer_meta_set: HashSet<String>,
@@ -100,7 +101,7 @@ pub async fn bangumi_search(keyword: String) -> Option<Vec<BangumiSubject>> {
 pub async fn fetch_random_anime() -> Option<BangumiSubject> {
     let client = reqwest::Client::new();
     let mut rng = rand::rng();
-    
+
     let mut attempts = 0;
     const MAX_ATTEMPTS: u32 = 15;
 
@@ -124,7 +125,7 @@ pub async fn fetch_random_anime() -> Option<BangumiSubject> {
 
         let url = "https://api.bgm.tv/v0/search/subjects";
         let mut url_with_q = format!("{}?limit=1&offset=0", url);
-        let req_body= serde_json::json!({
+        let req_body = serde_json::json!({
             "keyword": "",
             "filter": {
                 "type": [2],
@@ -158,7 +159,7 @@ pub async fn fetch_random_anime() -> Option<BangumiSubject> {
         if total == 0 {
             continue;
         }
-        
+
         let random_offset = rng.random_range(0..total);
         url_with_q = format!("{}?limit=1&offset={}", url, random_offset);
 
@@ -199,6 +200,7 @@ pub async fn fetch_random_anime() -> Option<BangumiSubject> {
 
 pub fn compare_anime(guess: &BangumiSubject, answer: &BangumiSubject) -> CompareResult {
     let mut correct = HashSet::new();
+    let mut almost = HashSet::new();
     let mut close = HashSet::new();
     let mut wrong = HashSet::new();
 
@@ -215,18 +217,32 @@ pub fn compare_anime(guess: &BangumiSubject, answer: &BangumiSubject) -> Compare
 
     if guess.date == answer.date {
         correct.insert("date".to_string());
-    } else if !guess.date.is_empty()
-        && !answer.date.is_empty()
-        && &guess.date[0..4] == &answer.date[0..4]
-    {
-        close.insert("date".to_string());
+    } else if !guess.date.is_empty() && !answer.date.is_empty() {
+        let g_year = guess.date.get(0..4).and_then(|s| s.parse::<i32>().ok());
+        let a_year = answer.date.get(0..4).and_then(|s| s.parse::<i32>().ok());
+
+        if let (Some(gy), Some(ay)) = (g_year, a_year) {
+            let diff = (gy - ay).abs();
+            if diff == 0 {
+                almost.insert("date".to_string());
+            } else if diff <= 3 {
+                close.insert("date".to_string());
+            } else {
+                wrong.insert("date".to_string());
+            }
+        } else {
+            wrong.insert("date".to_string());
+        }
     } else {
         wrong.insert("date".to_string());
     }
 
-    if guess.total_episodes == answer.total_episodes {
+    let ep_diff = (guess.total_episodes as i32 - answer.total_episodes as i32).abs();
+    if ep_diff == 0 {
         correct.insert("total_episodes".to_string());
-    } else if (guess.total_episodes as i32 - answer.total_episodes as i32).abs() <= 3 {
+    } else if ep_diff <= 2 {
+        almost.insert("total_episodes".to_string());
+    } else if ep_diff <= 10 {
         close.insert("total_episodes".to_string());
     } else {
         wrong.insert("total_episodes".to_string());
@@ -237,6 +253,7 @@ pub fn compare_anime(guess: &BangumiSubject, answer: &BangumiSubject) -> Compare
 
     CompareResult {
         correct,
+        almost,
         close,
         wrong,
         answer_meta_set,

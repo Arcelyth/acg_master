@@ -17,6 +17,8 @@ pub fn Card(
             styles::status_correct
         } else if comparison.close.contains(field) {
             styles::status_close
+        } else if comparison.almost.contains(field) {
+            styles::status_almost
         } else {
             styles::status_wrong
         }

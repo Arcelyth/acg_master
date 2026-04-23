@@ -256,14 +256,14 @@ pub fn Single() -> impl IntoView {
                     </div>
                 </div>
 
-                <Suspense fallback=move || view! {<p>"Loading..."</p>}>
-                    {move || Suspend::new(async move {
-                        match answer_memo.get() {
-                            Some(a) => view! { <div> <Card info=a.clone() answer=a/>  </div> }.into_view(),
-                            None => view! { <div> <p>"nothing"</p>  </div> }.into_view()
-                        }
-                    })}
-                </Suspense>
+//                <Suspense fallback=move || view! {<p>"Loading..."</p>}>
+//                    {move || Suspend::new(async move {
+//                        match answer_memo.get() {
+//                            Some(a) => view! { <div> <Card info=a.clone() answer=a/>  </div> }.into_view(),
+//                            None => view! { <div> <p>"nothing"</p>  </div> }.into_view()
+//                        }
+//                    })}
+//                </Suspense>
 
                 // all the answers
                 <div class=styles::display_section>

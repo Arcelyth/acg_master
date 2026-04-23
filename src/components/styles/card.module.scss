@@ -60,6 +60,7 @@
 }
 
 .status_correct,
+.status_almost,
 .status_close,
 .status_wrong,
 .meta_status,
@@ -93,6 +94,12 @@
   background-color: #eef8f2;
   color: #277b4c;
   border-color: #d1ebd8;
+}
+
+.status_almost {
+  background-color: #eef2f8;
+  color: #274c7b;
+  border-color: #d1e0eb;
 }
 
 .status_close {
