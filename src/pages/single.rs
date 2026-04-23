@@ -46,6 +46,7 @@ pub fn Single() -> impl IntoView {
     // timer
     let (elapsed_seconds, set_elapsed_seconds) = signal(0u64);
     let (is_timer_running, set_is_timer_running) = signal(false);
+    let (max_guess, set_max_guess) = signal(config.get_untracked().max_guess);
 
     let answer_memo = Memo::new(move |_| answer.get().flatten());
 
@@ -157,7 +158,7 @@ pub fn Single() -> impl IntoView {
                 }
             }
 
-            if ans_len >= config.get().max_guess {
+            if ans_len >= max_guess.get() {
                 set_game_state.set(GameState::Lose);
             }
         }
@@ -202,6 +203,8 @@ pub fn Single() -> impl IntoView {
         set_dup.set(false);
 
         set_game_state.set(GameState::Loading);
+        let latest_config_val = config.get_untracked().max_guess;
+        set_max_guess.set(latest_config_val);
 
         set_is_timer_running.set(false);
         set_elapsed_seconds.set(0);
@@ -311,7 +314,7 @@ pub fn Single() -> impl IntoView {
                         </button>
                         </div>
                     <div class=styles::guess_number>
-                        <span> {guess_time}/{config.get().max_guess} </span>
+                        <span> {guess_time}/{max_guess} </span>
                     </div>
                     <div class=styles::timer>
                         <span class=styles::timer_text> {formatted_time} </span>
@@ -366,7 +369,7 @@ pub fn Single() -> impl IntoView {
                                 <div>
                                     <div class=styles::reveal_container>
                                         <h2 class=status_class>{move || status_text}</h2>
-                                        <h4 class=status_class>{guess_time}/{config.get().max_guess}</h4>
+                                        <h4 class=status_class>{guess_time}/{max_guess}</h4>
                                         <h4 class=status_class>Time: {formatted_time}</h4>
                                         <button
                                             class=styles::reset_btn
