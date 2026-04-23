@@ -1,0 +1,39 @@
+:root {
+  --back-icon-color: #333333;
+  --back-icon-hover: #000000;
+}
+
+:global([data-theme="dark"]) {
+  --back-icon-color: #f0f0f0;
+  --back-icon-hover: #ffffff;
+}
+
+.back_btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  
+  background: transparent;
+  border: none;
+  text-decoration: none;
+  
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: transform 0.2s ease, color 0.2s ease;
+  
+  color: var(--back-icon-color);
+
+  svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  &:hover {
+    color: var(--back-icon-hover);
+    transform: translateX(-4px);
+  }
+
+  &:active {
+    transform: translateX(-2px) scale(0.9);
+  }
+}
