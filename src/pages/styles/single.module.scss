@@ -1,5 +1,6 @@
 main {
   width: 70%;
+  min-height: 100vh;
 }
 
 .top_section {
@@ -261,5 +262,44 @@ main {
 
   svg {
     display: block;
+  }
+}
+
+// loading animation
+.loader_wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem 0;
+  width: 100%;
+}
+
+.spinner {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.08);
+  border-top-color: #333;
+  animation: spin 0.8s linear infinite;
+  opacity: 0;
+  animation:
+    spin 0.8s linear infinite,
+    fadeIn 0.4s ease forwards;
+}
+
+:global([data-theme="dark"]) .spinner {
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-top-color: #fff;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
   }
 }

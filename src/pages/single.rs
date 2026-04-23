@@ -313,7 +313,13 @@ pub fn Single() -> impl IntoView {
                                             />
                                         </div>
                                     },
-                                    None => view! { <div>"Something wrong here! OMG!!!"</div> }
+                                    None => view! {
+                                        <div>
+                                            <div class=styles::loader_wrapper>
+                                                <div class=styles::spinner> </div>
+                                            </div> 
+                                        </div>
+                                    }
                                 }
                             })}
                         </Suspense>
