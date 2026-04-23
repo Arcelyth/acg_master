@@ -11,23 +11,48 @@ main {
 .title_container {
   width: 100%;
   display: flex; 
+  flex-direction: column;
   justify-content: center;
   align-items: center;
 
-  .title {
+  .main_title {
     font-size: 3.5rem;
+    font-weight: 800;
+    margin: 0;
+  }
+  .sub_title {
+    font-size: 1rem;
+    color: #666;
   }
 }
 
-.rules {
+.button_row {
   width: 100%;
   display: flex; 
   justify-content: center;
   align-items: center;
-  
-  p {
-    text-font: 1.5rem;
-  }
+  gap: 2rem;
 }
 
+.rules_container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  width: 80%;
+
+  .rules {
+    width: 100%;
+    display: flex; 
+    justify-content: center;
+    align-items: center;
+    
+    p {
+      font-size: 1rem;
+      line-height: 1.8;
+      max-width: 800px;
+      text-align: justify;
+    }
+  }
+}
 

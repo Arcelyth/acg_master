@@ -180,6 +180,7 @@ pub fn Single() -> impl IntoView {
                         <div class=styles::input_section>
                             <span> {move || texts().1}: </span>
                             <input
+                                placeholder="输入动漫名称"
                                 type="text"
                                 disabled=is_interaction_disabled
                                 bind:value=(user_input, set_user_input)
@@ -258,8 +259,8 @@ pub fn Single() -> impl IntoView {
                 <Suspense fallback=move || view! {<p>"Loading..."</p>}>
                     {move || Suspend::new(async move {
                         match answer_memo.get() {
-                            Some(a) => view! { <div> <Card info=a.clone() answer=a/> </div> }.into_view(),
-                            None => view! { <div> <p>"nothing"</p> </div> }.into_view()
+                            Some(a) => view! { <div> <Card info=a.clone() answer=a/>  </div> }.into_view(),
+                            None => view! { <div> <p>"nothing"</p>  </div> }.into_view()
                         }
                     })}
                 </Suspense>
