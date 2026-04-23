@@ -41,13 +41,18 @@ pub fn Card(
 
                 <div class=styles::tag_row>
                     {info.meta_tags.into_iter().map(|tag| {
-                        view! { <span class=styles::meta_badge>{tag}</span> }
+                        let is_correct = comparison.answer_meta_set.contains(&tag);
+                        let meta_style = if is_correct {styles::meta_status_correct} else {styles::meta_status};
+                        view! { <span class=meta_style>{tag}</span> }
                     }).collect_view()}
                 </div>
 
                 <div class=styles::tag_row>
                     {info.tags.into_iter().map(|tag| {
-                        view! { <span class=styles::tag_item>{tag.name}</span> }
+                        let is_correct = comparison.answer_tags_set.contains(&tag.name);
+                        let tag_style = if is_correct {styles::tag_status_correct} else {styles::tag_status};
+
+                        view! { <span class=tag_style>{tag.name}</span> }
                     }).collect_view()}
                 </div>
             </div>

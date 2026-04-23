@@ -62,8 +62,10 @@
 .status_correct,
 .status_close,
 .status_wrong,
-.meta_badge,
-.tag_item {
+.meta_status,
+.meta_status_correct,
+.tag_status,
+.tag_status_correct {
   font-family:
     system-ui,
     -apple-system,
@@ -85,6 +87,8 @@
   max-width: 15rem;
 }
 
+.tag_status_correct,
+.meta_status_correct,
 .status_correct {
   background-color: #eef8f2;
   color: #277b4c;
@@ -97,21 +101,12 @@
   border-color: #f7e6ca;
 }
 
+.tag_status,
+.meta_status,
 .status_wrong {
   background-color: #f7f7f7;
   color: #666666;
   border-color: #eeeeee;
 }
 
-.meta_badge {
-  background-color: #f0f0f0;
-  color: #333333;
-  font-weight: 500;
-}
 
-.tag_item {
-  background-color: #ffffff;
-  color: #888888;
-  border-color: #e0e0e0;
-  font-size: 0.75rem;
-}

@@ -43,10 +43,11 @@ pub fn Single() -> impl IntoView {
         fetch_random_anime()
     });
 
+    let answer_memo = Memo::new(move |_| answer.get().flatten());
 
     // Loading -> Playing
     Effect::new(move |_| {
-        if let Some(Some(_)) = answer.get() {
+        if let Some(_) = answer_memo.get() {
             if game_state.get_untracked() == GameState::Loading {
                 set_game_state.set(GameState::Playing);
             }
@@ -256,7 +257,7 @@ pub fn Single() -> impl IntoView {
 
                 <Suspense fallback=move || view! {<p>"Loading..."</p>}>
                     {move || Suspend::new(async move {
-                        match answer.await {
+                        match answer_memo.get() {
                             Some(a) => view! { <div> <Card info=a.clone() answer=a/> </div> }.into_view(),
                             None => view! { <div> <p>"nothing"</p> </div> }.into_view()
                         }
@@ -267,7 +268,7 @@ pub fn Single() -> impl IntoView {
                 <div class=styles::display_section>
                     <Suspense fallback=move || view! {<p>"Loading..."</p>}>
                         {move || Suspend::new(async move {
-                            let ans_opt = answer.await;
+                            let ans_opt = answer_memo.get();
                             match ans_opt {
                                 Some(ans) => view! {
                                     <div>
@@ -315,7 +316,7 @@ pub fn Single() -> impl IntoView {
 
                                         <Suspense fallback=|| view! { "..." }>
                                             {move || Suspend::new(async move {
-                                                match answer.await {
+                                                match answer_memo.get() {
                                                     Some(a) => view! {<div> <Card info=a.clone() answer=a/> </div>},
                                                     None => view! { <div>"Nothing"</div> }
                                                 }
