@@ -18,7 +18,7 @@ pub fn Home() -> impl IntoView {
             "动漫人物",
         ),
         Language::English => (
-            "AnimeMaster",
+            "ACGMaster",
             "omg!",
             "Anime Name",
             "Anime Character",
@@ -26,7 +26,7 @@ pub fn Home() -> impl IntoView {
     };
     let intro_text = move || match config.get().lang {
         Language::Chinese => (
-            "说明：在特定次数内猜出动漫名称为获胜条件，对于某次猜测给出的信息，",
+            "说明：在特定次数内猜出指定内容（比如:动漫名称, 动漫人物)为获胜条件，对于某次猜测给出的信息，",
             " 代表该项与目标答案完全匹配；而",
             " 则说明该项与答案接近。"
         ),

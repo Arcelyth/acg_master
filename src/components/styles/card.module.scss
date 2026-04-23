@@ -1,10 +1,58 @@
+:root {
+  --card-color: #ffffff;
+  --card-border: #eaeaea;
+  --card-border-hover: #cccccc;
+  --card-shadow-hover: rgba(0, 0, 0, 0.08);
+  --card-img-bg: #f5f5f5;
+
+  --correct-bg: #eef8f2;
+  --correct-color: #277b4c;
+  --correct-border: #d1ebd8;
+
+  --almost-bg: #eef2f8;
+  --almost-color: #274c7b;
+  --almost-border: #d1e0eb;
+
+  --close-bg: #fff9ed;
+  --close-color: #9c6c19;
+  --close-border: #f7e6ca;
+
+  --wrong-bg: #f7f7f7;
+  --wrong-color: #666666;
+  --wrong-border: #eeeeee;
+}
+
+:global([data-theme="dark"]) {
+  --card-color: #1a1a1a;
+  --card-border: #333333;
+  --card-border-hover: #555555;
+  --card-shadow-hover: rgba(0, 0, 0, 0.4);
+  --card-img-bg: #2a2a2a;
+
+  --correct-bg: #14301f;
+  --correct-color: #4ade80;
+  --correct-border: #1e472e;
+
+  --almost-bg: #121e30;
+  --almost-color: #60a5fa;
+  --almost-border: #1c314d;
+
+  --close-bg: #36260f;
+  --close-color: #fbbf24;
+  --close-border: #523a15;
+
+  --wrong-bg: #2a2a2a;
+  --wrong-color: #a3a3a3;
+  --wrong-border: #404040;
+}
+
 .card_container {
   display: flex;
   flex-direction: row;
   gap: 1.5rem;
   padding: 1rem;
-  background-color: #ffffff;
-  border: 0.0625rem solid #eaeaea;
+  background-color: var(--card-color);
+  border: 0.0625rem solid var(--card-border);
   border-radius: 0.5rem;
   margin-bottom: 1rem;
 
@@ -20,9 +68,9 @@
 }
 
 .card_container:hover {
-  border-color: #cccccc;
+  border-color: var(--card-border-hover);
   max-height: 20rem;
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0.5rem 1rem var(--card-shadow-hover);
   z-index: 10;
 }
 
@@ -32,7 +80,7 @@
   height: 8.75rem;
   border-radius: 0.25rem;
   overflow: hidden;
-  background-color: #f5f5f5;
+  background-color: var(--card-img-bg);
 }
 
 .card_image img {
@@ -91,29 +139,27 @@
 .tag_status_correct,
 .meta_status_correct,
 .status_correct {
-  background-color: #eef8f2;
-  color: #277b4c;
-  border-color: #d1ebd8;
+  background-color: var(--correct-bg);
+  color: var(--correct-color);
+  border-color: var(--correct-border);
 }
 
 .status_almost {
-  background-color: #eef2f8;
-  color: #274c7b;
-  border-color: #d1e0eb;
+  background-color: var(--almost-bg);
+  color: var(--almost-color);
+  border-color: var(--almost-border);
 }
 
 .status_close {
-  background-color: #fff9ed;
-  color: #9c6c19;
-  border-color: #f7e6ca;
+  background-color: var(--close-bg);
+  color: var(--close-color);
+  border-color: var(--close-border);
 }
 
 .tag_status,
 .meta_status,
 .status_wrong {
-  background-color: #f7f7f7;
-  color: #666666;
-  border-color: #eeeeee;
+  background-color: var(--wrong-bg);
+  color: var(--wrong-color);
+  border-color: var(--wrong-border);
 }
-
-
