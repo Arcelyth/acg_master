@@ -3,15 +3,15 @@ use leptos_meta::*;
 use leptos_router::{components::*, path};
 use stylance::import_style;
 
+mod bangumi;
 mod components;
 mod config;
-mod pages;
 mod items;
-mod bangumi;
+mod pages;
 
-use crate::components::header;
+use crate::components::{footer, header};
 use crate::config::Config;
-use crate::pages::{home::Home, single::Single, not_found::NotFound};
+use crate::pages::{home::Home, not_found::NotFound, single::Single};
 
 import_style!(styles, "app.module.scss");
 
@@ -35,6 +35,7 @@ pub fn App() -> impl IntoView {
                 <Route path=path!("/single") view=Single />
                 <Route path=path!("/*any") view=NotFound />
             </Routes>
+            <footer::Footer/>
         </Router>
     }
 }

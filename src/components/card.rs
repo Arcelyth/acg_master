@@ -5,13 +5,6 @@ import_crate_style!(styles, "./src/components/styles/card.module.scss");
 
 use crate::bangumi::*;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Status {
-    Correct,
-    Close,
-    Wrong,
-}
-
 #[component]
 pub fn Card(
     info: BangumiSubject, 
@@ -38,11 +31,11 @@ pub fn Card(
             <div class=styles::card_content>
                 <div class=styles::info_row>
                     <span class=get_status_class("name")>{info.name}</span>
-                    <span class=get_status_class("name_cn")>{info.name_cn}</span>
+                    <span class=get_status_class("name_cn")>{if info.name_cn == "" {"-".to_string()} else {info.name_cn}}</span>
                 </div>
 
                 <div class=styles::info_row>
-                    <span class=get_status_class("date")>{info.date}</span>
+                    <span class=get_status_class("date")>{if info.date == "" {"-".to_string()} else {info.date}}</span>
                     <span class=get_status_class("total_episodes")>{info.total_episodes} "话"</span>
                 </div>
 
@@ -53,7 +46,7 @@ pub fn Card(
                 </div>
 
                 <div class=styles::tag_row>
-                    {info.tags.into_iter().take(8).map(|tag| {
+                    {info.tags.into_iter().map(|tag| {
                         view! { <span class=styles::tag_item>{tag.name}</span> }
                     }).collect_view()}
                 </div>
