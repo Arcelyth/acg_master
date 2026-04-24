@@ -6,7 +6,6 @@ use stylance::import_style;
 mod bangumi;
 mod components;
 mod config;
-mod items;
 mod pages;
 
 use crate::components::{footer, header};

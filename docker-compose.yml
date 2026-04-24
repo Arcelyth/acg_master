@@ -1,0 +1,11 @@
+version: '3.9'
+name: acg-master
+services:
+  redis: 
+    image: redis:8.0.3
+    container_name: acg-master_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - ${DOCKER_PATH}/redis/data:/data

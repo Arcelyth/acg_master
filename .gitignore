@@ -1,6 +1,6 @@
 /target
 dist
 style
-
 *.DS_Store
 .env
+/docker

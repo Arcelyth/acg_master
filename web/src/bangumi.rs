@@ -269,3 +269,5 @@ pub fn is_guess_right(guess: &BangumiSubject, answer: &BangumiSubject) -> bool {
         false
     }
 }
+
+

@@ -7,6 +7,10 @@ edition = "2024"
 dotenvy.workspace = true
 actix-web.workspace = true
 actix-cors.workspace = true
-serde.workspace  = true
-serde_json.workspace  = true 
-
+actix-session.workspace = true
+serde.workspace = true
+serde_json.workspace = true 
+reqwest.workspace = true
+rand.workspace = true
+hex.workspace = true
+time.workspace = true
