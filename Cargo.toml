@@ -1,9 +1,11 @@
-[package]
-name = "acg_master"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "3"
+members = [
+    "web", 
+    "server"
+]
 
-[dependencies]
+[workspace.dependencies]
 console_error_panic_hook = "0.1.7"
 leptos = { version = "0.8.19", features = ["csr"] }
 leptos_meta = "0.8.6"
@@ -18,8 +20,3 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
 gloo-timers = { version = "0.4", features = ["futures"] }
 
 
-[package.metadata.stylance]
-output_file = "./style/bundled.css"
-folders = ["./src/"]
-extensions = [".module.scss", ".module.css"]
-workspace = false
