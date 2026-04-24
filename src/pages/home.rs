@@ -11,29 +11,21 @@ pub fn Home() -> impl IntoView {
     let config = use_context::<ReadSignal<Config>>().expect("reader");
 
     let t = move || match config.get().lang {
-        Language::Chinese => (
-            "标题",
-            "副标题",
-            "动漫名称",
-            "动漫人物",
-        ),
-        Language::English => (
-            "ACGMaster",
-            "omg!",
-            "Anime Name",
-            "Anime Character",
-        ),
+        Language::Chinese => ("标题", "副标题", "动漫名称", "动漫人物"),
+        Language::English => ("ACGMaster", "omg!", "Anime Name", "Anime Character"),
     };
     let intro_text = move || match config.get().lang {
         Language::Chinese => (
             "说明：在特定次数内猜出指定内容（比如:动漫名称, 动漫人物)为获胜条件，对于某次猜测给出的信息，",
             " 代表该项与目标答案完全匹配；而",
-            " 则说明该项与答案接近。"
+            " 则说明该项与答案接近。",
+            " 则说明该项与答案相差无几。",
         ),
         Language::English => (
             "Rules: In limited guess times, guess the anime name. For each guess, ",
             " indicates a perfect match; ",
-            " indicates a close attribute."
+            " indicates a close attribute.",
+            " indicates that the item is very similar to the answer.",
         ),
     };
 
@@ -50,10 +42,10 @@ pub fn Home() -> impl IntoView {
             </div>
 
             <div class=styles::rules_container>
-               <div class=styles::rules> 
+               <div class=styles::rules>
                     <p>
                         {move || intro_text().0}
-                        <span style="     
+                        <span style="
                               display: inline-block;
                               width: 1.2rem;
                               height: 1.2rem;
@@ -77,6 +69,18 @@ pub fn Home() -> impl IntoView {
                               border: 0.0625rem solid #f7e6ca;
                         "> </span>
                         {move || intro_text().2}
+                        <span style="
+                              display: inline-block;
+                              width: 1.2rem;
+                              height: 1.2rem;
+                              border-radius: 0.25rem;
+                              vertical-align: middle;
+                              margin: 0 0.3rem;
+                              background-color: #eef2f8;
+                              color: #274c7b;
+                              border: 0.0625rem solid #d1e0eb;
+                        "> </span>
+                        {move || intro_text().3}
                     </p>
                </div>
             </div>

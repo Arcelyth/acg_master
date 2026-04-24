@@ -132,7 +132,8 @@
   max-width: 100%;
 }
 
-.info_row > span {
+.info_row > span,
+.tooltip_wrapper > span {
   max-width: 15rem;
 }
 
@@ -162,4 +163,35 @@
   background-color: var(--wrong-bg);
   color: var(--wrong-color);
   border-color: var(--wrong-border);
+}
+
+.tooltip_wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.tip_container {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.35rem;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.tips {
+  display: none;
+  font-size: 0.75rem;
+  background-color: rgba(0, 0, 0, 0.75);
+  color: #ffffff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px var(--card-shadow-hover);
+}
+
+.status_close:hover ~ .tip_container .tips,
+.status_almost:hover ~ .tip_container .tips {
+  display: block;
 }
