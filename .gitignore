@@ -3,3 +3,4 @@ dist
 style
 
 *.DS_Store
+.env
