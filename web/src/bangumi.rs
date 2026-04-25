@@ -62,6 +62,7 @@ pub struct CompareResult {
 pub struct GuessResponse {
     pub is_correct: bool,
     pub comparison: CompareResult,
+    pub answer: Option<(BangumiSubject, CompareResult)>,
 }
 
 pub async fn bangumi_search(keyword: String) -> Option<Vec<BangumiSubject>> {
@@ -95,11 +96,18 @@ pub async fn bangumi_search(keyword: String) -> Option<Vec<BangumiSubject>> {
     Some(result.data)
 }
 
-pub async fn anime_start_game() -> bool {
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+struct StartGameRequest {
+    max_guess: usize,
+}
+
+pub async fn anime_start_game(max_guess: usize) -> bool {
     let client = Client::new();
+    let server_config = StartGameRequest { max_guess };
     let res = client
-        .get("http://127.0.0.1:8066/api/bangumi/anime/start_game")
+        .post("http://127.0.0.1:8066/api/bangumi/anime/start_game")
         .fetch_credentials_include()
+        .json(&server_config)
         .send()
         .await;
 
@@ -140,6 +148,7 @@ pub async fn compare_anime(guess: &BangumiSubject) -> GuessResponse {
             answer_meta_set: HashSet::new(),
             answer_tags_set: HashSet::new(),
         },
+        answer: None,
     }
 }
 

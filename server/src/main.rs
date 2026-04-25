@@ -14,7 +14,7 @@ use handler::bangumi::*;
 fn init_api(cfg: &mut ServiceConfig) {
     cfg.service(
         web::scope("/anime")
-            .route("/start_game", web::get().to(start_new_game))
+            .route("/start_game", web::post().to(start_new_game))
             .route("/verify_guess", web::post().to(verify_guess)),
     );
 }

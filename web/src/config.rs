@@ -33,3 +33,4 @@ fn detect_lang() -> Language {
     }
 
 }
+

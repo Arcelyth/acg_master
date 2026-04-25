@@ -67,7 +67,7 @@ pub struct CompareResult {
 pub struct GuessResponse {
     pub is_correct: bool,
     pub comparison: CompareResult,
-    pub answer: Option<BangumiSubject>,
+    pub answer: Option<(BangumiSubject, CompareResult)>,
 }
 
 pub async fn fetch_random_anime() -> Option<BangumiSubject> {
@@ -217,17 +217,24 @@ pub fn is_guess_right(guess: &BangumiSubject, answer: &BangumiSubject) -> bool {
     guess.name == answer.name || guess.name_cn == answer.name_cn
 }
 
-pub async fn start_new_game(session: Session, config: web::Json<Config>) -> impl Responder {
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct StartGameRequest {
+    max_guess: usize,
+}
+
+pub async fn start_new_game(session: Session, config: web::Json<StartGameRequest>) -> impl Responder {
     if let Some(subject) = fetch_random_anime().await {
         if session.insert("current_answer", &subject).is_err() {
             return HttpResponse::InternalServerError()
                 .json(serde_json::json!({"error": "Session error"}));
         }
-        if session.insert("config", &config).is_err() {
+        let c = Config::new(config.max_guess);
+        if session.insert("config", &c).is_err() {
             return HttpResponse::InternalServerError()
                 .json(serde_json::json!({"error": "Session error"}));
         }
 
+        println!("Game's answer is: {} \n {}", subject.name, subject.name_cn);
         HttpResponse::Ok().json(serde_json::json!({
             "status": "success",
         }))
@@ -247,10 +254,11 @@ pub async fn verify_guess(session: Session, guess: web::Json<BangumiSubject>) ->
         }));
     };
 
-    println!("Received Guess for: {}", answer.name);
+    println!("Received Guess: {} \n {}", guess.name, guess.name_cn);
 
     let is_correct = is_guess_right(&guess, &answer);
     let comparison = compare_anime(&guess, &answer);
+    let right_comp = compare_anime(&answer, &answer);
     let new_guess_time = config.guess_time + 1;
     
     let is_game_over = is_correct || new_guess_time >= config.max_guess;
@@ -271,6 +279,6 @@ pub async fn verify_guess(session: Session, guess: web::Json<BangumiSubject>) ->
     HttpResponse::Ok().json(GuessResponse {
         is_correct,
         comparison,
-        answer: if is_game_over { Some(answer) } else { None },
+        answer: if is_game_over { Some((answer, right_comp)) } else { None },
     })
 }

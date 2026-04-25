@@ -39,6 +39,7 @@ pub fn Single() -> impl IntoView {
     let (cards, set_cards) = signal::<Vec<(BangumiSubject, CompareResult)>>(vec![]);
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
     let (refresh_trigger, set_refresh_trigger) = signal(0);
+    let (answer, set_answer) = signal(None);
 
     // timer
     let (elapsed_seconds, set_elapsed_seconds) = signal(0u64);
@@ -67,7 +68,7 @@ pub fn Single() -> impl IntoView {
     Effect::new(move |_| {
         if game_state.get() == GameState::Loading {
             spawn_local(async move {
-                let success = anime_start_game().await;
+                let success = anime_start_game(max_guess.get_untracked()).await;
                 if success {
                     set_game_state.set(GameState::Playing);
                 }
@@ -155,7 +156,9 @@ pub fn Single() -> impl IntoView {
                 let is_win = comp_result.is_correct;
 
                 set_cards.update(|c| c.push((subject.clone(), comp_result.comparison)));
-
+                if let Some(ans) = comp_result.answer {
+                    set_answer.set(Some(ans));
+                }
                 let ans_len = cards.get_untracked().len();
                 set_guess_time.set(ans_len);
 
@@ -374,14 +377,14 @@ pub fn Single() -> impl IntoView {
                                             <hr class=styles::divider />
                                             <p class=styles::reveal_text> {move || texts().5} </p>
 
-                          //                  <Suspense fallback=|| view! { "..." }>
-                          //                      {move || Suspend::new(async move {
-                          //                          match answer_memo.get() {
-                          //                              Some(a) => view! {<div> <Card info=a.clone() answer=a/> </div>},
-                          //                              None => view! { <div>"Nothing"</div> }
-                          //                          }
-                          //                      })}
-                          //                  </Suspense>
+                                            <Suspense fallback=|| view! { "..." }>
+                                                {move || Suspend::new(async move {
+                                                    match answer.get() {
+                                                        Some(a) => view! {<div> <Card info=a.0.clone() comparison=a.1/> </div>},
+                                                        None => view! { <div><span></span> </div> }
+                                                    }
+                                                })}
+                                            </Suspense>
                                         </div>
                                     </div>
                                 }
