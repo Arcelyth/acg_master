@@ -44,7 +44,7 @@ pub fn Single() -> impl IntoView {
     // timer
     let (elapsed_seconds, set_elapsed_seconds) = signal(0u64);
     let (is_timer_running, set_is_timer_running) = signal(false);
-    let (max_guess, set_max_guess) = signal(config.get_untracked().max_guess);
+    let (current_config, set_current_config) = signal(config.get_untracked());
 
     let formatted_time = move || {
         let s = elapsed_seconds.get();
@@ -68,7 +68,7 @@ pub fn Single() -> impl IntoView {
     Effect::new(move |_| {
         if game_state.get() == GameState::Loading {
             spawn_local(async move {
-                let success = anime_start_game(max_guess.get_untracked()).await;
+                let success = anime_start_game(current_config.get_untracked()).await;
                 if success {
                     set_game_state.set(GameState::Playing);
                 }
@@ -164,7 +164,7 @@ pub fn Single() -> impl IntoView {
 
                 if is_win {
                     set_game_state.set(GameState::Win);
-                } else if ans_len >= max_guess.get_untracked() {
+                } else if ans_len >= current_config.get_untracked().max_guess {
                     set_game_state.set(GameState::Lose);
                 }
             });
@@ -210,8 +210,8 @@ pub fn Single() -> impl IntoView {
         set_dup.set(false);
 
         set_game_state.set(GameState::Loading);
-        let latest_config_val = config.get_untracked().max_guess;
-        set_max_guess.set(latest_config_val);
+
+        set_current_config.set(config.get_untracked());
 
         set_is_timer_running.set(false);
         set_elapsed_seconds.set(0);
@@ -321,7 +321,7 @@ pub fn Single() -> impl IntoView {
                             </button>
                             </div>
                         <div class=styles::guess_number>
-                            <span> {guess_time}/{max_guess} </span>
+                            <span> {guess_time}/{current_config.get().max_guess} </span>
                         </div>
                         <div class=styles::timer>
                             <span class=styles::timer_text> {formatted_time} </span>
@@ -366,7 +366,7 @@ pub fn Single() -> impl IntoView {
                                     <div>
                                         <div class=styles::reveal_container>
                                             <h2 class=status_class>{move || status_text}</h2>
-                                            <h4 class=status_class>{guess_time}/{max_guess}</h4>
+                                            <h4 class=status_class>{guess_time}/{current_config.get().max_guess}</h4>
                                             <h4 class=status_class>Time: {formatted_time}</h4>
                                             <button
                                                 class=styles::reset_btn

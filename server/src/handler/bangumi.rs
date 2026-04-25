@@ -70,7 +70,7 @@ pub struct GuessResponse {
     pub answer: Option<(BangumiSubject, CompareResult)>,
 }
 
-pub async fn fetch_random_anime() -> Option<BangumiSubject> {
+pub async fn fetch_random_anime(start_year: usize, end_year: usize) -> Option<BangumiSubject> {
     let client = reqwest::Client::new();
     let mut rng = rand::rng();
     let mut attempts = 0;
@@ -83,7 +83,27 @@ pub async fn fetch_random_anime() -> Option<BangumiSubject> {
         (2000..=2009, 5),
         (1960..=1999, 1),
     ];
-    let dist = WeightedIndex::new(year_weights.iter().map(|item| item.1)).ok()?;
+
+    let mut active_ranges = Vec::new();
+    for (range, weight) in year_weights.iter() {
+        let overlap_start = (*range.start()).max(start_year);
+        let overlap_end = (*range.end()).min(end_year);
+
+        if overlap_start <= overlap_end {
+            active_ranges.push((overlap_start..=overlap_end, *weight));
+        }
+    }
+
+    // other check
+    if active_ranges.is_empty() {
+        if start_year <= end_year {
+            active_ranges.push((start_year..=end_year, 1));
+        } else {
+            return None;
+        }
+    }
+
+    let dist = WeightedIndex::new(active_ranges.iter().map(|item| item.1)).ok()?;
 
     loop {
         attempts += 1;
@@ -220,15 +240,17 @@ pub fn is_guess_right(guess: &BangumiSubject, answer: &BangumiSubject) -> bool {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct StartGameRequest {
     max_guess: usize,
+    start_year: usize,
+    end_year: usize,
 }
 
 pub async fn start_new_game(session: Session, config: web::Json<StartGameRequest>) -> impl Responder {
-    if let Some(subject) = fetch_random_anime().await {
+    if let Some(subject) = fetch_random_anime(config.start_year, config.end_year).await {
         if session.insert("current_answer", &subject).is_err() {
             return HttpResponse::InternalServerError()
                 .json(serde_json::json!({"error": "Session error"}));
         }
-        let c = Config::new(config.max_guess);
+        let c = Config::new(config.max_guess, config.start_year, config.end_year);
         if session.insert("config", &c).is_err() {
             return HttpResponse::InternalServerError()
                 .json(serde_json::json!({"error": "Session error"}));

@@ -9,6 +9,8 @@ pub struct Config {
     pub theme_dark: bool,
     pub lang: Language,
     pub max_guess: usize,
+    pub start_year: usize,
+    pub end_year: usize,
 }
 
 impl Config {
@@ -17,6 +19,8 @@ impl Config {
             theme_dark: false,
             lang: detect_lang(),
             max_guess: 10,
+            start_year: 1960,
+            end_year: 2026,
         }
     }
 }

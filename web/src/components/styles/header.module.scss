@@ -21,7 +21,7 @@
   justify-content: center;
   transition: all 0.3s ease;
   padding: 0;
-  
+
   svg {
     width: 22px;
     height: 22px;
@@ -74,14 +74,14 @@
   border: none;
   cursor: pointer;
   padding: 4px;
-  
+
   svg {
     width: 20px;
     height: 20px;
     stroke: #999;
     stroke-width: 2.5;
   }
-  
+
   &:hover svg {
     stroke: #ff4d4f;
   }
@@ -105,11 +105,49 @@
       flex: 1;
       cursor: pointer;
     }
-    
+
     span {
       min-width: 2rem;
       font-weight: bold;
       font-family: monospace;
+    }
+  }
+
+  .year_range_wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+
+    span {
+      color: #666;
+      font-size: 0.9rem;
+    }
+
+    .year_input {
+      flex: 1;
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 0.5rem;
+      text-align: center;
+      font-family: monospace;
+      font-size: 1rem;
+      outline: none;
+      transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+      -moz-appearance: textfield;
+
+      &:focus {
+        border-color: #888;
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
+      }
+
+      &::-webkit-inner-spin-button,
+      &::-webkit-outer-spin-button {
+        opacity: 0.7;
+        cursor: pointer;
+      }
     }
   }
 }
@@ -124,18 +162,38 @@
   .settings_btn {
     background: #222;
     border-color: #444;
-    svg { stroke: #fff; }
-    &:hover { background: #444; }
+    svg {
+      stroke: #fff;
+    }
+    &:hover {
+      background: #444;
+    }
   }
 
   .modal_content {
     background: #1a1a1a;
     border-color: #333;
     color: #eee;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   }
 
   .note_text {
     color: #666;
+  }
+
+  .year_range_wrapper {
+    span {
+      color: #aaa;
+    }
+    .year_input {
+      background: #2a2a2a;
+      border-color: #444;
+      color: #eee;
+
+      &:focus {
+        border-color: #777;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.05);
+      }
+    }
   }
 }

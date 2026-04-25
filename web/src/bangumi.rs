@@ -1,6 +1,9 @@
+use std::collections::HashSet;
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+
+use crate::config::Config;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct BangumiSearchResponse {
@@ -86,7 +89,10 @@ pub async fn bangumi_search(keyword: String) -> Option<Vec<BangumiSubject>> {
     let url = "https://api.bgm.tv/v0/search/subjects";
     let res = client
         .post(url)
-        .header("User-Agent", "arcelyth/acg-master (https://github.com/arcelyth/acg_master)")
+        .header(
+            "User-Agent",
+            "arcelyth/acg_master (https://github.com/arcelyth/acg_master)",
+        )
         .json(&body)
         .send()
         .await
@@ -97,13 +103,19 @@ pub async fn bangumi_search(keyword: String) -> Option<Vec<BangumiSubject>> {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-struct StartGameRequest {
+pub struct StartGameRequest {
     max_guess: usize,
+    start_year: usize,
+    end_year: usize,
 }
 
-pub async fn anime_start_game(max_guess: usize) -> bool {
+pub async fn anime_start_game(config: Config) -> bool {
     let client = Client::new();
-    let server_config = StartGameRequest { max_guess };
+    let server_config = StartGameRequest {
+        max_guess: config.max_guess,
+        start_year: config.start_year,
+        end_year: config.end_year,
+    };
     let res = client
         .post("http://127.0.0.1:8066/api/bangumi/anime/start_game")
         .fetch_credentials_include()
