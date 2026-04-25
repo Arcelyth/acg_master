@@ -3,7 +3,7 @@ use stylance::import_crate_style;
 
 import_crate_style!(styles, "./src/components/styles/card.module.scss");
 
-use crate::bangumi::*;
+use crate::bangumi::anime::*;
 use crate::config::{Config, Language};
 
 #[component]

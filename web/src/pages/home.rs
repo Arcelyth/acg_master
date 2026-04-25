@@ -11,8 +11,8 @@ pub fn Home() -> impl IntoView {
     let config = use_context::<ReadSignal<Config>>().expect("reader");
 
     let t = move || match config.get().lang {
-        Language::Chinese => ("标题", "副标题", "动漫名称", "动漫人物"),
-        Language::English => ("ACGMaster", "omg!", "Anime Name", "Anime Character"),
+        Language::Chinese => ("ACG 高手", "🫵检测你是否是动漫膏手🫵", "开始", "动漫人物"),
+        Language::English => ("ACGMaster", "🫵Test to see if you are an anime master🫵", "START", "Anime Character"),
     };
     let intro_text = move || match config.get().lang {
         Language::Chinese => (
@@ -38,7 +38,6 @@ pub fn Home() -> impl IntoView {
 
             <div class=styles::button_row>
                 <JmpBtn text={move || t().2.to_string()} url="/single".to_string()/>
-                <JmpBtn text={move || t().3.to_string()} url="/single2".to_string()/>
             </div>
 
             <div class=styles::rules_container>
