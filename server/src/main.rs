@@ -9,7 +9,7 @@ use actix_web::{App, HttpServer, middleware, web};
 use time::Duration;
 
 mod handler;
-use handler::*;
+use handler::bangumi::*;
 
 fn init_api(cfg: &mut ServiceConfig) {
     cfg.service(

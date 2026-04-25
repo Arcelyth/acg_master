@@ -1,9 +1,12 @@
+use std::collections::HashSet;
+
 use actix_session::Session;
 use actix_web::{HttpResponse, Responder, web};
 use rand::distr::weighted::WeightedIndex;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+
+use crate::handler::config::Config;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct BangumiTags {
@@ -64,6 +67,7 @@ pub struct CompareResult {
 pub struct GuessResponse {
     pub is_correct: bool,
     pub comparison: CompareResult,
+    pub answer: Option<BangumiSubject>,
 }
 
 pub async fn fetch_random_anime() -> Option<BangumiSubject> {
@@ -213,42 +217,60 @@ pub fn is_guess_right(guess: &BangumiSubject, answer: &BangumiSubject) -> bool {
     guess.name == answer.name || guess.name_cn == answer.name_cn
 }
 
-pub async fn start_new_game(session: Session) -> impl Responder {
+pub async fn start_new_game(session: Session, config: web::Json<Config>) -> impl Responder {
     if let Some(subject) = fetch_random_anime().await {
         if session.insert("current_answer", &subject).is_err() {
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Session error"}));
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Session error"}));
         }
+        if session.insert("config", &config).is_err() {
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Session error"}));
+        }
+
         HttpResponse::Ok().json(serde_json::json!({
             "status": "success",
         }))
     } else {
-        HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to fetch anime"}))
+        HttpResponse::InternalServerError()
+            .json(serde_json::json!({"error": "Failed to fetch anime"}))
     }
 }
 
 pub async fn verify_guess(session: Session, guess: web::Json<BangumiSubject>) -> impl Responder {
-    match session.get::<BangumiSubject>("current_answer") {
-        Ok(Some(answer)) => {
-            println!("Received");
-            let is_correct = is_guess_right(&guess, &answer);
-            let comparison = compare_anime(&guess, &answer);
+    let (Ok(Some(answer)), Ok(Some(config))) = (
+        session.get::<BangumiSubject>("current_answer"),
+        session.get::<Config>("config")
+    ) else {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "No active game found. Please start a new game."
+        }));
+    };
 
-            if is_correct {
-                session.remove("current_answer");
-            }
+    println!("Received Guess for: {}", answer.name);
 
-            HttpResponse::Ok().json(GuessResponse {
-                is_correct,
-                comparison,
-            })
+    let is_correct = is_guess_right(&guess, &answer);
+    let comparison = compare_anime(&guess, &answer);
+    let new_guess_time = config.guess_time + 1;
+    
+    let is_game_over = is_correct || new_guess_time >= config.max_guess;
+
+    if is_game_over {
+        session.remove("current_answer");
+        session.remove("config");
+    } else {
+        let new_config = Config {
+            guess_time: new_guess_time,
+            ..config
+        };
+        if session.insert("config", &new_config).is_err() {
+            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Session save error"}));
         }
-        Ok(None) => {
-            println!("No active game found.");
-            HttpResponse::BadRequest().json(serde_json::json!({"error": "No active game found. Please start a new game."}))
-        }
-
-        Err(_) => {
-            println!("Session read error.");
-            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Session read error"}))}
     }
+
+    HttpResponse::Ok().json(GuessResponse {
+        is_correct,
+        comparison,
+        answer: if is_game_over { Some(answer) } else { None },
+    })
 }
