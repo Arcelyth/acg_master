@@ -244,64 +244,59 @@ pub fn Single() -> impl IntoView {
 
                 <div class=styles::interact_section>
                     <div class=styles::search_wrapper>
-                        <div class=styles::input_section>
+                       <div class=styles::input_section>
                             <span> {move || texts().1}: </span>
-                            <input
-                                placeholder={move || texts().6}
-                                type="text"
-                                disabled=is_interaction_disabled
-                                bind:value=(user_input, set_user_input)
-                                on:focus=move |_| set_input_focused.set(true)
-                                on:blur=move |_| set_input_focused.set(false)
-                                on:keydown=on_keydown
-                            />
-                        </div>
-                        {move || {
-                            if dup.get() {
-                                view! { <div><span class=styles::dup_message>{move || texts().7}</span></div> }
-                            } else {
-                                view! { <div><div style="display:none"></div></div> }
-                            }
-                        }}
+                            
+                            <div class=styles::input_container> 
+                                <input
+                                    placeholder={move || texts().6}
+                                    type="text"
+                                    disabled=is_interaction_disabled
+                                    bind:value=(user_input, set_user_input)
+                                    on:focus=move |_| set_input_focused.set(true)
+                                    on:blur=move |_| set_input_focused.set(false)
+                                    on:keydown=on_keydown
+                                />
 
-                        // the float list
-                        {move || {
-                            let items = unique_search_results();
-                            let focused = input_focused.get();
-                            let input_val = user_input.get();
+                                {move || {
+                                    let items = unique_search_results();
+                                    let focused = input_focused.get();
+                                    let input_val = user_input.get();
 
-                            if focused && !items.is_empty() && !input_val.is_empty() {
-                                view! {
-                                    <div>
-                                        <ul class=styles::dropdown_list>
-                                            <For
-                                                each=move || items.clone().into_iter().enumerate()
-                                                key=|(_, item)| item.id.clone()
-                                                children=move |(i, item)| {
-                                                    let is_selected = move || selected_dropdown_index.get() == i;
-                                                    let name_clone = item.name_cn.clone();
-                                                    view! {
-                                                        <li
-                                                            class=move || if is_selected() { styles::dropdown_item_active } else { styles::dropdown_item }
-                                                            on:mousedown=move |ev| ev.prevent_default()
-                                                            on:click=move |_| {
-                                                                set_user_input.set(name_clone.clone());
-                                                                set_selected_dropdown_index.set(i);
-                                                                add_selected_or_first();
-                                                            }
-                                                        >
-                                                            {item.name_cn}
-                                                        </li>
+                                    if focused && !items.is_empty() && !input_val.is_empty() {
+                                        view! {
+                                            <div>
+                                            <ul class=styles::dropdown_list>
+                                                <For
+                                                    each=move || items.clone().into_iter().enumerate()
+                                                    key=|(_, item)| item.id.clone()
+                                                    children=move |(i, item)| {
+                                                        let is_selected = move || selected_dropdown_index.get() == i;
+                                                        let name_clone = item.name_cn.clone();
+                                                        view! {
+                                                            <li
+                                                                class=move || if is_selected() { styles::dropdown_item_active } else { styles::dropdown_item }
+                                                                on:mousedown=move |ev| ev.prevent_default()
+                                                                on:click=move |_| {
+                                                                    set_user_input.set(name_clone.clone());
+                                                                    set_selected_dropdown_index.set(i);
+                                                                    add_selected_or_first();
+                                                                }
+                                                            >
+                                                                {item.name_cn}
+                                                            </li>
+                                                        }
                                                     }
-                                                }
-                                            />
-                                        </ul>
-                                    </div>
-                                }
-                            } else {
-                                view! { <div> <span style="display:none;"></span> </div>}
-                            }
-                        }}
+                                                />
+                                            </ul>
+                                            </div>
+                                        }
+                                    } else {
+                                        view! { <div><ul style="display:none"></ul></div> }
+                                    }
+                                }}
+                            </div>
+                        </div>
                     </div>
 
                     <div class=styles::button_section>
