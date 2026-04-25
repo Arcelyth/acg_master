@@ -5,7 +5,6 @@ use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct BangumiTags {
     pub name: String,
@@ -32,7 +31,7 @@ pub struct BangumiSubject {
     pub eps: usize,
     pub total_episodes: usize,
     pub meta_tags: Vec<String>,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", alias = "kind")]
     pub kind: usize,
 }
 
@@ -217,21 +216,20 @@ pub fn is_guess_right(guess: &BangumiSubject, answer: &BangumiSubject) -> bool {
 pub async fn start_new_game(session: Session) -> impl Responder {
     if let Some(subject) = fetch_random_anime().await {
         if session.insert("current_answer", &subject).is_err() {
-            return HttpResponse::InternalServerError()
-                .json(serde_json::json!({"error": "Session error"}));
+            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Session error"}));
         }
         HttpResponse::Ok().json(serde_json::json!({
             "status": "success",
         }))
     } else {
-        HttpResponse::InternalServerError()
-            .json(serde_json::json!({"error": "Failed to fetch anime"}))
+        HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to fetch anime"}))
     }
 }
 
 pub async fn verify_guess(session: Session, guess: web::Json<BangumiSubject>) -> impl Responder {
     match session.get::<BangumiSubject>("current_answer") {
         Ok(Some(answer)) => {
+            println!("Received");
             let is_correct = is_guess_right(&guess, &answer);
             let comparison = compare_anime(&guess, &answer);
 
@@ -244,9 +242,13 @@ pub async fn verify_guess(session: Session, guess: web::Json<BangumiSubject>) ->
                 comparison,
             })
         }
-        Ok(None) => HttpResponse::BadRequest()
-            .json(serde_json::json!({"error": "No active game found. Please start a new game."})),
-        Err(_) => HttpResponse::InternalServerError()
-            .json(serde_json::json!({"error": "Session read error"})),
+        Ok(None) => {
+            println!("No active game found.");
+            HttpResponse::BadRequest().json(serde_json::json!({"error": "No active game found. Please start a new game."}))
+        }
+
+        Err(_) => {
+            println!("Session read error.");
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Session read error"}))}
     }
 }
