@@ -86,7 +86,7 @@ pub async fn bangumi_search(keyword: String) -> Option<Vec<BangumiSubject>> {
     let url = "https://api.bgm.tv/v0/search/subjects";
     let res = client
         .post(url)
-        .header("User-Agent", "LeptosApp/0.1.0")
+        .header("User-Agent", "arcelyth/acg-master (https://github.com/arcelyth/acg_master)")
         .json(&body)
         .send()
         .await

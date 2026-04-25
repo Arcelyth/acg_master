@@ -24,7 +24,7 @@ pub fn App() -> impl IntoView {
 
     view! {
         <Html attr:lang="en" attr:dir="ltr" attr:data-theme=move || if config.get().theme_dark {"dark"} else {"light"} />
-        <Title text="Anime Master" />
+        <Title text="ACG Master" />
         <Meta charset="UTF-8" />
         <Meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <Router>

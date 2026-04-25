@@ -106,7 +106,7 @@ pub async fn fetch_random_anime() -> Option<BangumiSubject> {
 
         let count_res = client
             .post(format!("{}?limit=1&offset=0", url))
-            .header("User-Agent", "LeptosApp/1.0")
+            .header("User-Agent", "arcelyth/acg_master (https://github.com/arcelyth/acg_master)")
             .json(&req_body)
             .send()
             .await
@@ -125,7 +125,7 @@ pub async fn fetch_random_anime() -> Option<BangumiSubject> {
         let random_offset = rng.random_range(0..total);
         let res = client
             .post(format!("{}?limit=1&offset={}", url, random_offset))
-            .header("User-Agent", "LeptosApp/1.0")
+            .header("User-Agent", "arcelyth/acg_master (https://github.com/arcelyth/acg_master)")
             .json(&req_body)
             .send()
             .await
