@@ -7,8 +7,7 @@ use crate::bangumi::*;
 use crate::config::{Config, Language};
 
 #[component]
-pub fn Card(info: BangumiSubject, answer: BangumiSubject) -> impl IntoView {
-    let comparison = compare_anime(&info, &answer);
+pub fn Card(info: BangumiSubject, comparison: CompareResult ) -> impl IntoView {
     let config = use_context::<ReadSignal<Config>>().expect("to have found the reader provided");
     let comp_for_class = comparison.clone();
     let get_status_class = move |field: &str| {

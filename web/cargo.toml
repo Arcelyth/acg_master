@@ -5,17 +5,19 @@ edition = "2024"
 
 [dependencies]
 console_error_panic_hook.workspace = true
-leptos.workspace  = true
-leptos_meta.workspace  =  true
-leptos_router.workspace  =  true
-stylance.workspace  =  true
-web-sys.workspace  =  true
-reqwest.workspace  =  true
-serde.workspace  = true
-serde_json.workspace  = true 
-rand.workspace  =  true
-getrandom.workspace  = true
-gloo-timers.workspace  =  true
+leptos.workspace = true
+leptos_meta.workspace = true
+leptos_router.workspace = true
+stylance.workspace = true
+web-sys.workspace = true
+reqwest.workspace = true
+reqwest-wasm.workspace = true
+serde.workspace = true
+serde_json.workspace = true 
+rand.workspace = true
+getrandom.workspace = true
+gloo-timers.workspace = true
+gloo-net.workspace = true
 
 [package.metadata.stylance]
 output_file = "./style/bundled.css"
