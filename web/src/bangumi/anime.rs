@@ -52,7 +52,7 @@ pub struct SubjectImages {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct CompareResult {
     pub correct: HashSet<String>,
     pub almost: HashSet<String>,

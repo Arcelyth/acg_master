@@ -34,7 +34,7 @@ pub fn Single() -> impl IntoView {
 
     let (guess_time, set_guess_time) = signal(0usize);
     let (game_state, set_game_state) = signal(GameState::Loading);
-    let (dup, set_dup) = signal(false);
+    let (_dup, set_dup) = signal(false);
 
     let (cards, set_cards) = signal::<Vec<(BangumiSubject, CompareResult)>>(vec![]);
     let (_refresh_trigger, set_refresh_trigger) = signal(0);

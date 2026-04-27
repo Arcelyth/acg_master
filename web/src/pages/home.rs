@@ -38,6 +38,7 @@ pub fn Home() -> impl IntoView {
 
             <div class=styles::button_row>
                 <JmpBtn text={move || t().2.to_string()} url="/single".to_string()/>
+                <JmpBtn text={move || t().2.to_string()} url="/multi".to_string()/>
             </div>
 
             <div class=styles::rules_container>

@@ -4,3 +4,4 @@ style
 *.DS_Store
 .env
 /docker_data
+*.tar

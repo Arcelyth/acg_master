@@ -10,7 +10,7 @@ mod pages;
 
 use crate::components::{footer, header};
 use crate::config::Config;
-use crate::pages::{home::Home, not_found::NotFound, single::Single};
+use crate::pages::{home::Home, not_found::NotFound, single::Single, multi::Multi};
 
 import_style!(styles, "app.module.scss");
 
@@ -32,6 +32,7 @@ pub fn App() -> impl IntoView {
             <Routes fallback=|| view! { NotFound }>
                 <Route path=path!("/") view=Home />
                 <Route path=path!("/single") view=Single />
+                <Route path=path!("/multi") view=Multi />
                 <Route path=path!("/*any") view=NotFound />
             </Routes>
             <footer::Footer/>

@@ -6,7 +6,7 @@ services:
     container_name: acg-master_redis
     restart: always
     ports:
-      - "${REDIS_EXPOSE_PORT}"
+      - "${REDIS_EXPOSE_PORT:-6379:6379}"
     volumes:
       - ${DOCKER_PATH}/redis/data:/data
 
