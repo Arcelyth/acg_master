@@ -3,4 +3,4 @@ dist
 style
 *.DS_Store
 .env
-/docker
+/docker_data

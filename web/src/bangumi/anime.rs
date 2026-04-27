@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use web_sys::window;
 
 use crate::config::Config;
 
@@ -116,8 +117,10 @@ pub async fn anime_start_game(config: Config) -> bool {
         start_year: config.start_year,
         end_year: config.end_year,
     };
+    let origin = window().unwrap().location().origin().unwrap();
+    let url = format!("{}/api/bangumi/anime/start_game", origin);
     let res = client
-        .post("http://127.0.0.1:8066/api/bangumi/anime/start_game")
+        .post(url)
         .fetch_credentials_include()
         .json(&server_config)
         .send()
@@ -136,9 +139,11 @@ pub async fn anime_start_game(config: Config) -> bool {
 
 pub async fn compare_anime(guess: &BangumiSubject) -> GuessResponse {
     let client = Client::builder().build().unwrap();
+    let origin = window().unwrap().location().origin().unwrap();
+    let url = format!("{}/api/bangumi/anime/verify_guess", origin);
 
     let res = client
-        .post("http://127.0.0.1:8066/api/bangumi/anime/verify_guess")
+        .post(url)
         .fetch_credentials_include()
         .json(guess)
         .send()
