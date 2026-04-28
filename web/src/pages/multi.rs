@@ -26,12 +26,24 @@ pub enum GameState {
     Lose,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum ChatSide {
+    I,
+    O,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChatEntry {
+    side: ChatSide,
+    content: String,
+}
+
 #[component]
 pub fn Multi() -> impl IntoView {
     let (game_state, set_game_state) = signal(GameState::Lobby);
-    let (response, set_response) = signal(String::new());
+    // for chat
+    let (chat_log, set_chat_log) = signal::<Vec<ChatEntry>>(vec![]);
     let (username, set_username) = signal("".to_string());
-    // TODO: need to delete
     let (text, set_text) = signal("".to_string());
     let config = use_context::<ReadSignal<Config>>().expect("reader");
 
@@ -60,6 +72,13 @@ pub fn Multi() -> impl IntoView {
             return;
         }
 
+        set_chat_log.update(|v| {
+            v.push(ChatEntry {
+                side: ChatSide::I,
+                content: current_msg.clone(),
+            });
+        });
+
         if let Some(tx) = ws_sender.get_value() {
             let msg = ClientMsg::Message(current_msg.clone());
 
@@ -72,7 +91,6 @@ pub fn Multi() -> impl IntoView {
     };
 
     let connect = move |_| {
-        
         let sender = connect_ws(move |msg| {
             println!("recv: {}", msg);
 
@@ -82,7 +100,12 @@ pub fn Multi() -> impl IntoView {
                         set_game_state.set(GameState::Playing);
                     }
                     ServerMsg::Response(m) => {
-                        set_response.set(m.clone());
+                        set_chat_log.update(|v| {
+                            v.push(ChatEntry {
+                                side: ChatSide::O,
+                                content: m,
+                            });
+                        });
                     }
                 }
             }
@@ -138,20 +161,50 @@ pub fn Multi() -> impl IntoView {
                     </div>
                 </Show>
 
-                <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
-                    <div class=styles::lobby_section>
-                        <input
-                            class=styles::username_input
-                            placeholder=texts().0
-                            bind:value=(text, set_text)
-                            disabled=move || game_state.get() == GameState::Matching
-                        />
-                        <button class=styles::match_btn on:click=send_text disabled=move || game_state.get() == GameState::Matching>
-                           发送
-                        </button>
+              
+
+            </main>
+  <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
+                    <div class=styles::chat_panel>
+                                              
+                        <div class=styles::chat_messages>
+                            {move || {
+                            chat_log.get()
+                                .iter()
+                                .enumerate()
+                                .map(|(i, item)| {
+                                    let bubble_class = match item.side {
+                                        ChatSide::I => styles::chat_item_me,
+                                        ChatSide::O => styles::chat_item_other,
+                                    };
+                                    view! {
+                                        <div class=bubble_class>
+                                            {format!("{}: {}", i, item.content.clone())}
+                                        </div>
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                            }}
+
+                        </div>
+                        <div class=styles::chat_input_row>
+                            <input
+                                class=styles::chat_input
+                                placeholder="message..."
+                                bind:value=(text, set_text)
+                                disabled=move || game_state.get() == GameState::Matching
+                            />
+                            <button
+                                class=styles::chat_send
+                                on:click=send_text
+                                disabled=move || game_state.get() == GameState::Matching
+                            >
+                                "Send"
+                            </button>
+                        </div>
                     </div>
                 </Show>
-            </main>
+
         </ErrorBoundary>
     }
 }
