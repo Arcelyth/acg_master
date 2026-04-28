@@ -12,6 +12,7 @@ use web_sys::window;
 
 import_crate_style!(styles, "./src/pages/styles/multi.module.scss");
 
+use crate::bangumi::anime::*;
 use crate::components::back_btn::BackBtn;
 use crate::config::{Config, Language};
 use crate::ws::*;
@@ -54,6 +55,55 @@ pub fn Multi() -> impl IntoView {
     let (is_timer_running, set_is_timer_running) = signal(false);
     let (current_config, set_current_config) = signal(config.get_untracked());
     let (p2_name, set_p2) = signal::<String>("".to_string());
+
+    let (user_input, set_user_input) = signal("".to_string());
+    let (debounced_input, set_debounced_input) = signal("".to_string());
+    let (input_version, set_input_version) = signal(0);
+
+    let (input_focused, set_input_focused) = signal(false);
+    let (selected_dropdown_index, set_selected_dropdown_index) = signal(0usize);
+
+    let (guess_time, set_guess_time) = signal(0usize);
+
+    let (cards, set_cards) = signal::<Vec<(BangumiSubject, CompareResult)>>(vec![]);
+    let (_refresh_trigger, set_refresh_trigger) = signal(0);
+    let (answer, set_answer) = signal(None);
+
+    let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
+
+    Effect::new(move |_| {
+        let state = game_state.get();
+        if state == GameState::Win || state == GameState::Lose {
+            set_is_timer_running.set(false);
+        }
+    });
+
+    // Loading -> Playing
+    Effect::new(move |_| {
+        if game_state.get() == GameState::Loading {
+            spawn_local(async move {
+                let success = anime_start_game(current_config.get_untracked()).await;
+                if success {
+                    set_game_state.set(GameState::Playing);
+                }
+            });
+        }
+    });
+
+    // debounce
+    Effect::new(move |_| {
+        let current_text = user_input.get();
+        set_input_version.update(|v| *v += 1);
+        let current_version = input_version.get_untracked();
+
+        spawn_local(async move {
+            TimeoutFuture::new(500).await;
+            if input_version.get_untracked() == current_version {
+                set_debounced_input.set(current_text);
+                set_selected_dropdown_index.set(0);
+            }
+        });
+    });
 
     let formatted_time = move || {
         let s = elapsed_seconds.get();
@@ -113,6 +163,7 @@ pub fn Multi() -> impl IntoView {
                             });
                         });
                     }
+                    _ => {}
                 }
             }
         });
@@ -136,8 +187,123 @@ pub fn Multi() -> impl IntoView {
     };
 
     let texts = move || match config.get().lang {
-        Language::Chinese => ("输入名称", "开始匹配", "匹配中......"),
-        Language::English => ("Input your name", "Start matching", "Matching..."),
+        Language::Chinese => ("输入名称", "开始匹配", "匹配中......", "输入动漫名称"),
+        Language::English => (
+            "Input your name",
+            "Start matching",
+            "Matching...",
+            "Input anime's name",
+        ),
+    };
+
+    let unique_search_results = move || {
+        let res = search_results.get().flatten().unwrap_or_default();
+        let mut seen = HashSet::new();
+        res.into_iter()
+            .filter(|item| !item.name_cn.is_empty())
+            .filter(|item| seen.insert(item.name_cn.clone()))
+            .collect::<Vec<_>>()
+    };
+
+    let add_selected_or_first = move || {
+        let items = unique_search_results();
+        if items.is_empty() {
+            return;
+        }
+
+        let current_idx = selected_dropdown_index.get_untracked();
+        let target = items.get(current_idx).or(items.first()).cloned();
+
+        if let Some(subject) = target {
+            let exists = cards
+                .get_untracked()
+                .iter()
+                .any(|(c, _)| c.id == subject.id);
+            if exists {
+                return;
+            }
+
+            if cards.get_untracked().is_empty() {
+                set_is_timer_running.set(true);
+            }
+
+            set_user_input.set("".to_string());
+            set_selected_dropdown_index.set(0);
+
+            spawn_local(async move {
+                let comp_result = compare_anime(&subject).await;
+
+                let is_win = comp_result.is_correct;
+
+                set_cards.update(|c| c.push((subject.clone(), comp_result.comparison)));
+                if let Some(ans) = comp_result.answer {
+                    set_answer.set(Some(ans));
+                }
+                let ans_len = cards.get_untracked().len();
+                set_guess_time.set(ans_len);
+
+                if is_win {
+                    set_game_state.set(GameState::Win);
+                } else if ans_len >= current_config.get_untracked().max_guess {
+                    set_game_state.set(GameState::Lose);
+                }
+            });
+        }
+    };
+
+    let on_keydown = move |ev: leptos::web_sys::KeyboardEvent| {
+        let items = unique_search_results();
+        if items.is_empty() {
+            return;
+        }
+
+        let max_idx = items.len().saturating_sub(1);
+        let current = selected_dropdown_index.get_untracked();
+
+        match ev.key().as_str() {
+            "ArrowDown" => {
+                ev.prevent_default();
+                let next = if current >= max_idx { 0 } else { current + 1 };
+                set_selected_dropdown_index.set(next);
+            }
+            "ArrowUp" => {
+                ev.prevent_default();
+                let prev = if current == 0 { max_idx } else { current - 1 };
+                set_selected_dropdown_index.set(prev);
+            }
+            "Enter" => {
+                ev.prevent_default();
+                if let Some(item) = items.get(current) {
+                    set_user_input.set(item.name_cn.clone());
+                }
+            }
+            _ => {}
+        }
+    };
+
+    let is_interaction_disabled = move || game_state.get() != GameState::Playing;
+
+    let reset_game = move |_| {
+        set_cards.set(vec![]);
+        set_guess_time.set(0);
+        set_user_input.set("".to_string());
+
+        set_game_state.set(GameState::Loading);
+
+        set_current_config.set(config.get_untracked());
+
+        set_is_timer_running.set(false);
+        set_elapsed_seconds.set(0);
+
+        set_refresh_trigger.update(|n| *n += 1);
+    };
+
+    let reset_icon = move || {
+        view! {
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+        }
     };
 
     view! {
@@ -166,8 +332,8 @@ pub fn Multi() -> impl IntoView {
                           </button>
                       </div>
                   </Show>
-                    // show names 
                   <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
+                        // show names
                         <div class=styles::player_panel>
                             <div class=styles::player_me>
                                 {move || username.get()}
@@ -176,13 +342,96 @@ pub fn Multi() -> impl IntoView {
                                 {move || p2_name.get()}
                             </div>
                         </div>
+
+             <div class=styles::interact_section>
+                    <div class=styles::search_wrapper>
+                       <div class=styles::input_section>
+                            <span> {move || texts().1}: </span>
+
+                            <div class=styles::input_container>
+                                <input
+                                    placeholder={move || texts().3}
+                                    type="text"
+                                    disabled=is_interaction_disabled
+                                    bind:value=(user_input, set_user_input)
+                                    on:focus=move |_| set_input_focused.set(true)
+                                    on:blur=move |_| set_input_focused.set(false)
+                                    on:keydown=on_keydown
+                                />
+
+                                {move || {
+                                    let items = unique_search_results();
+                                    let focused = input_focused.get();
+                                    let input_val = user_input.get();
+
+                                    if focused && !items.is_empty() && !input_val.is_empty() {
+                                        view! {
+                                            <div>
+                                            <ul class=styles::dropdown_list>
+                                                <For
+                                                    each=move || items.clone().into_iter().enumerate()
+                                                    key=|(_, item)| item.id.clone()
+                                                    children=move |(i, item)| {
+                                                        let is_selected = move || selected_dropdown_index.get() == i;
+                                                        let name_clone = item.name_cn.clone();
+                                                        view! {
+                                                            <li
+                                                                class=move || if is_selected() { styles::dropdown_item_active } else { styles::dropdown_item }
+                                                                on:mousedown=move |ev| ev.prevent_default()
+                                                                on:click=move |_| {
+                                                                    set_user_input.set(name_clone.clone());
+                                                                    set_selected_dropdown_index.set(i);
+                                                                    add_selected_or_first();
+                                                                }
+                                                            >
+                                                                {item.name_cn}
+                                                            </li>
+                                                        }
+                                                    }
+                                                />
+                                            </ul>
+                                            </div>
+                                        }
+                                    } else {
+                                        view! { <div><ul style="display:none"></ul></div> }
+                                    }
+                                }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class=styles::button_section>
+                        // send buttons
+                        <button
+                            disabled=is_interaction_disabled
+                            on:click=move |_| add_selected_or_first()
+                        >
+                            {move || texts().2}
+                        </button>
+                        // reset button
+                        <button
+                            class=styles::reset_btn
+                            on:click=reset_game
+                        >
+                            {reset_icon}
+                        </button>
+                        </div>
+                    <div class=styles::guess_number>
+                        <span> {guess_time}/{current_config.get().max_guess} </span>
+                    </div>
+                    <div class=styles::timer>
+                        <span class=styles::timer_text> {formatted_time} </span>
+                    </div>
+                </div>
+
+
                     </Show>
 
 
 
               </main>
 
-                  // chat 
+                  // chat
     <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
                       <div class=styles::chat_panel>
 

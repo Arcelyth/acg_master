@@ -34,7 +34,6 @@ pub fn Single() -> impl IntoView {
 
     let (guess_time, set_guess_time) = signal(0usize);
     let (game_state, set_game_state) = signal(GameState::Loading);
-    let (_dup, set_dup) = signal(false);
 
     let (cards, set_cards) = signal::<Vec<(BangumiSubject, CompareResult)>>(vec![]);
     let (_refresh_trigger, set_refresh_trigger) = signal(0);
@@ -124,7 +123,6 @@ pub fn Single() -> impl IntoView {
     };
 
     let add_selected_or_first = move || {
-        set_dup.set(false);
         let items = unique_search_results();
         if items.is_empty() {
             return;
@@ -139,7 +137,6 @@ pub fn Single() -> impl IntoView {
                 .iter()
                 .any(|(c, _)| c.id == subject.id);
             if exists {
-                set_dup.set(true);
                 return;
             }
 
@@ -207,7 +204,6 @@ pub fn Single() -> impl IntoView {
         set_cards.set(vec![]);
         set_guess_time.set(0);
         set_user_input.set("".to_string());
-        set_dup.set(false);
 
         set_game_state.set(GameState::Loading);
 

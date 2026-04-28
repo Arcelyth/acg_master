@@ -4,19 +4,29 @@ use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 use web_sys::window;
 
+use crate::bangumi::anime::*;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientMsg {
-    Join(String),   // name
+    Join(String), // name
     Message(String),
+    Guess(BangumiSubject),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GuessResponse {
+    pub is_correct: bool,
+    pub comparison: CompareResult,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
     JoinSucc(String, String),
     Response(String),
+    GuessResp(GuessResponse),
+    OGuessResp(CompareResult), // another guy's resp
+    Over(bool, BangumiSubject), 
 }
-
-
 
 pub fn connect_ws(
     on_message: impl Fn(String) + 'static + Clone,
