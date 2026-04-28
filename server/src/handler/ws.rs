@@ -5,6 +5,23 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
+#[derive(Clone)]
+pub struct MultiState {
+    waiting: Arc<Mutex<Vec<Player>>>,
+    rooms: Arc<Mutex<HashMap<String, (Player, Player)>>>,
+    user_room: Arc<Mutex<HashMap<String, String>>>,
+}
+
+impl MultiState {
+    pub fn new() -> Self {
+        Self {
+            waiting: Arc::new(Mutex::new(vec![])),
+            rooms: Arc::new(Mutex::new(HashMap::new())),
+            user_room: Arc::new(Mutex::new(HashMap::new())),
+        }
+    } 
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientMsg {
     Join,
@@ -17,12 +34,6 @@ pub enum ServerMsg {
     Response(String),
 }
 
-#[derive(Clone)]
-pub struct MultiState {
-    waiting: Arc<Mutex<Vec<Player>>>,
-    rooms: Arc<Mutex<HashMap<String, (Player, Player)>>>,
-    user_room: Arc<Mutex<HashMap<String, String>>>,
-}
 
 #[derive(Clone)]
 pub struct Player {
@@ -86,6 +97,7 @@ pub async fn ws(
                                     .await;
                             } else {
                                 waiting.push(player);
+                                println!("Someone start waiting...");
                             }
                         }
                         ClientMsg::Message(m) => {

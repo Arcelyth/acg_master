@@ -5,7 +5,7 @@ use actix_cors::Cors;
 use actix_files::{Files, NamedFile};
 use actix_session::{SessionMiddleware, config::PersistentSession, storage::RedisSessionStore};
 use actix_web::cookie::Key;
-use actix_web::web::ServiceConfig;
+use actix_web::web::{ServiceConfig, Data};
 use actix_web::{App, HttpServer, middleware, web};
 use time::Duration;
 
@@ -49,6 +49,8 @@ async fn main() -> Result<()> {
 
     println!("Starting server at {server_url} in {app_env} mode");
 
+    let state = Data::new(MultiState::new());
+
     HttpServer::new(move || {
         let cors = Cors::default()
             .allowed_origin(&frontend_url)
@@ -74,6 +76,7 @@ async fn main() -> Result<()> {
             .wrap(cors)
             .service(web::scope("/api/bangumi").configure(init_api))
             .service(Files::new("/", "/app/site").index_file("index.html"))
+            .app_data(state.clone())
             .default_service(web::get().to(|| async {
         NamedFile::open_async("/app/site/index.html").await
     }))
