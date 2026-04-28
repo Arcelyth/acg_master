@@ -53,6 +53,7 @@ pub fn Multi() -> impl IntoView {
     let (elapsed_seconds, set_elapsed_seconds) = signal(0u64);
     let (is_timer_running, set_is_timer_running) = signal(false);
     let (current_config, set_current_config) = signal(config.get_untracked());
+    let (p2_name, set_p2) = signal::<String>("".to_string());
 
     let formatted_time = move || {
         let s = elapsed_seconds.get();
@@ -96,8 +97,13 @@ pub fn Multi() -> impl IntoView {
 
             if let Ok(server_msg) = serde_json::from_str::<ServerMsg>(&msg) {
                 match server_msg {
-                    ServerMsg::JoinSucc => {
+                    ServerMsg::JoinSucc(name1, name2) => {
                         set_game_state.set(GameState::Playing);
+                        if name1 == username.get() {
+                            set_p2.set(name2);
+                        } else {
+                            set_p2.set(name1);
+                        }
                     }
                     ServerMsg::Response(m) => {
                         set_chat_log.update(|v| {
@@ -110,7 +116,7 @@ pub fn Multi() -> impl IntoView {
                 }
             }
         });
-        let join_msg = ClientMsg::Join;
+        let join_msg = ClientMsg::Join(username.get());
         if let Ok(text) = serde_json::to_string(&join_msg) {
             let _ = sender.unbounded_send(Message::Text(text));
         }
@@ -135,78 +141,91 @@ pub fn Multi() -> impl IntoView {
     };
 
     view! {
-        <ErrorBoundary fallback=|errors| {
-            view! {
-                <h1>"Uh oh! Something went wrong!"</h1>
-                <ul>
-                    {move || errors.get().into_iter().map(|(_, e)| view! { <li>{e.to_string()}</li> }).collect_view()}
-                </ul>
-            }
-        }>
-            <main>
-                <div class=styles::top_section>
-                    <BackBtn />
-                </div>
+          <ErrorBoundary fallback=|errors| {
+              view! {
+                  <h1>"Uh oh! Something went wrong!"</h1>
+                  <ul>
+                      {move || errors.get().into_iter().map(|(_, e)| view! { <li>{e.to_string()}</li> }).collect_view()}
+                  </ul>
+              }
+          }>
+              <main>
+                  <div class=styles::top_section>
+                      <BackBtn />
+                  </div>
 
-                <Show when=move || game_state.get() == GameState::Lobby || game_state.get() == GameState::Matching>
-                    <div class=styles::lobby_section>
-                        <input
-                            class=styles::username_input
-                            placeholder=texts().0
-                            bind:value=(username, set_username)
-                        />
-                        <button class=styles::match_btn on:click=start_match disabled=move || game_state.get() == GameState::Matching>
-                            {move || if game_state.get() == GameState::Matching { texts().2 } else { texts().1 }}
-                        </button>
-                    </div>
-                </Show>
-
-              
-
-            </main>
-  <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
-                    <div class=styles::chat_panel>
-                                              
-                        <div class=styles::chat_messages>
-                            {move || {
-                            chat_log.get()
-                                .iter()
-                                .enumerate()
-                                .map(|(i, item)| {
-                                    let bubble_class = match item.side {
-                                        ChatSide::I => styles::chat_item_me,
-                                        ChatSide::O => styles::chat_item_other,
-                                    };
-                                    view! {
-                                        <div class=bubble_class>
-                                            {format!("{}: {}", i, item.content.clone())}
-                                        </div>
-                                    }
-                                })
-                                .collect::<Vec<_>>()
-                            }}
-
+                  <Show when=move || game_state.get() == GameState::Lobby || game_state.get() == GameState::Matching>
+                      <div class=styles::lobby_section>
+                          <input
+                              class=styles::username_input
+                              placeholder=texts().0
+                              bind:value=(username, set_username)
+                          />
+                          <button class=styles::match_btn on:click=start_match disabled=move || game_state.get() == GameState::Matching>
+                              {move || if game_state.get() == GameState::Matching { texts().2 } else { texts().1 }}
+                          </button>
+                      </div>
+                  </Show>
+                    // show names 
+                  <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
+                        <div class=styles::player_panel>
+                            <div class=styles::player_me>
+                                {move || username.get()}
+                            </div>
+                            <div class=styles::player_other>
+                                {move || p2_name.get()}
+                            </div>
                         </div>
-                        <div class=styles::chat_input_row>
-                            <input
-                                class=styles::chat_input
-                                placeholder="message..."
-                                bind:value=(text, set_text)
-                                disabled=move || game_state.get() == GameState::Matching
-                            />
-                            <button
-                                class=styles::chat_send
-                                on:click=send_text
-                                disabled=move || game_state.get() == GameState::Matching
-                            >
-                                "Send"
-                            </button>
-                        </div>
-                    </div>
-                </Show>
+                    </Show>
 
-        </ErrorBoundary>
-    }
+
+
+              </main>
+
+                  // chat 
+    <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
+                      <div class=styles::chat_panel>
+
+                          <div class=styles::chat_messages>
+                              {move || {
+                              chat_log.get()
+                                  .iter()
+                                  .enumerate()
+                                  .map(|(_, item)| {
+                                      let bubble_class = match item.side {
+                                          ChatSide::I => styles::chat_item_me,
+                                          ChatSide::O => styles::chat_item_other,
+                                      };
+                                      view! {
+                                          <div class=bubble_class>
+                                              {format!("{}", item.content.clone())}
+                                          </div>
+                                      }
+                                  })
+                                  .collect::<Vec<_>>()
+                              }}
+
+                          </div>
+                          <div class=styles::chat_input_row>
+                              <input
+                                  class=styles::chat_input
+                                  placeholder="message..."
+                                  bind:value=(text, set_text)
+                                  disabled=move || game_state.get() == GameState::Matching
+                              />
+                              <button
+                                  class=styles::chat_send
+                                  on:click=send_text
+                                  disabled=move || game_state.get() == GameState::Matching
+                              >
+                                  "Send"
+                              </button>
+                          </div>
+                      </div>
+                  </Show>
+
+          </ErrorBoundary>
+      }
 }
 
 pub fn use_interval<T, F>(interval_millis: T, f: F)

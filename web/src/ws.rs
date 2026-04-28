@@ -6,15 +6,17 @@ use web_sys::window;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientMsg {
-    Join,
+    Join(String),   // name
     Message(String),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum ServerMsg{
-    JoinSucc,
+pub enum ServerMsg {
+    JoinSucc(String, String),
     Response(String),
 }
+
+
 
 pub fn connect_ws(
     on_message: impl Fn(String) + 'static + Clone,

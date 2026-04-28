@@ -24,13 +24,13 @@ impl MultiState {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientMsg {
-    Join,
+    Join(String),   // name
     Message(String),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
-    JoinSucc,
+    JoinSucc(String, String),
     Response(String),
 }
 
@@ -38,6 +38,7 @@ pub enum ServerMsg {
 #[derive(Clone)]
 pub struct Player {
     pub id: String,
+    pub name: String,
     pub session: Session,
 }
 
@@ -66,11 +67,12 @@ pub async fn ws(
                     };
                     println!("receive: {:?}", client_msg);
                     match client_msg {
-                        ClientMsg::Join => {
+                        ClientMsg::Join(name) => {
                             let user_id = format!("user-{}", Uuid::new_v4());
                             current_user_id = Some(user_id.clone());
                             let mut player = Player {
                                 id: user_id.clone(),
+                                name: name.clone(), 
                                 session: session.clone(),
                             };
 
@@ -88,12 +90,12 @@ pub async fn ws(
                                 // inform both players
                                 let _ = another
                                     .session
-                                    .text(serde_json::to_string(&ServerMsg::JoinSucc).unwrap())
+                                    .text(serde_json::to_string(&ServerMsg::JoinSucc(name.clone(), another.name.clone())).unwrap())
                                     .await;
 
                                 let _ = player
                                     .session
-                                    .text(serde_json::to_string(&ServerMsg::JoinSucc).unwrap())
+                                    .text(serde_json::to_string(&ServerMsg::JoinSucc(name, another.name)).unwrap())
                                     .await;
                             } else {
                                 waiting.push(player);
