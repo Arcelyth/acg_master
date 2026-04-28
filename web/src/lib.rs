@@ -7,6 +7,7 @@ mod bangumi;
 mod components;
 mod config;
 mod pages;
+mod ws;
 
 use crate::components::{footer, header};
 use crate::config::Config;

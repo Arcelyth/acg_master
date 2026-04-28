@@ -117,8 +117,12 @@ pub async fn anime_start_game(config: Config) -> bool {
         start_year: config.start_year,
         end_year: config.end_year,
     };
-    let origin = window().unwrap().location().origin().unwrap();
-    let url = format!("{}/api/bangumi/anime/start_game", origin);
+    let url = if cfg!(debug_assertions) {
+        format!("http://localhost:8060/api/bangumi/anime/start_game")
+    } else {
+        let origin = window().unwrap().location().origin().unwrap();
+        format!("{}/api/bangumi/anime/start_game", origin)
+    };
     let res = client
         .post(url)
         .fetch_credentials_include()
@@ -139,8 +143,13 @@ pub async fn anime_start_game(config: Config) -> bool {
 
 pub async fn compare_anime(guess: &BangumiSubject) -> GuessResponse {
     let client = Client::builder().build().unwrap();
-    let origin = window().unwrap().location().origin().unwrap();
-    let url = format!("{}/api/bangumi/anime/verify_guess", origin);
+
+    let url = if cfg!(debug_assertions) {
+        format!("http://localhost:8060/api/bangumi/anime/verify_guess")
+    } else {
+        let origin = window().unwrap().location().origin().unwrap();
+        format!("{}/api/bangumi/anime/start_game", origin)
+    };
 
     let res = client
         .post(url)

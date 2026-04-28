@@ -6,17 +6,19 @@ use actix_files::{Files, NamedFile};
 use actix_session::{SessionMiddleware, config::PersistentSession, storage::RedisSessionStore};
 use actix_web::cookie::Key;
 use actix_web::web::ServiceConfig;
-use actix_web::{App, HttpServer, http, middleware, web};
+use actix_web::{App, HttpServer, middleware, web};
 use time::Duration;
 
 mod handler;
 use handler::bangumi::*;
+use handler::ws::*;
 
 fn init_api(cfg: &mut ServiceConfig) {
     cfg.service(
         web::scope("/anime")
             .route("/start_game", web::post().to(start_new_game))
-            .route("/verify_guess", web::post().to(verify_guess)),
+            .route("/verify_guess", web::post().to(verify_guess))
+            .route("/ws", web::get().to(ws)),
     );
 }
 
