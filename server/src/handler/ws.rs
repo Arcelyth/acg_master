@@ -5,10 +5,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
+use crate::handler::bangumi::*;
+
 #[derive(Clone)]
 pub struct MultiState {
     waiting: Arc<Mutex<Vec<Player>>>,
-    rooms: Arc<Mutex<HashMap<String, (Player, Player)>>>,
+    rooms: Arc<Mutex<HashMap<String, Room>>>,
     user_room: Arc<Mutex<HashMap<String, String>>>,
 }
 
@@ -19,21 +21,38 @@ impl MultiState {
             rooms: Arc::new(Mutex::new(HashMap::new())),
             user_room: Arc::new(Mutex::new(HashMap::new())),
         }
-    } 
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientMsg {
-    Join(String),   // name
+    Join(String), // name
     Message(String),
+    Guess(BangumiSubject),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GuessResponse {
+    pub is_correct: bool,
+    pub comparison: CompareResult,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
     JoinSucc(String, String),
     Response(String),
+    GuessResp(GuessResponse),
+    OGuessResp(CompareResult), // another guy's resp
+    Over(bool, BangumiSubject), 
 }
 
+#[derive(Clone)]
+pub struct Room {
+    pub p1: Player,
+    pub p2: Player,
+    pub answer: BangumiSubject,
+    pub finished: bool,
+}
 
 #[derive(Clone)]
 pub struct Player {
@@ -70,33 +89,61 @@ pub async fn ws(
                         ClientMsg::Join(name) => {
                             let user_id = format!("user-{}", Uuid::new_v4());
                             current_user_id = Some(user_id.clone());
-                            let mut player = Player {
+                            let player = Player {
                                 id: user_id.clone(),
-                                name: name.clone(), 
+                                name: name.clone(),
                                 session: session.clone(),
                             };
 
-                            // TODO:  handle error
                             let mut waiting = state.waiting.lock().unwrap();
-                            if let Some(mut another) = waiting.pop() {
-                                let room_id = Uuid::new_v4().to_string();
-                                // TODO:  handle error
-                                let mut rooms = state.rooms.lock().unwrap();
-                                rooms.insert(room_id.clone(), (another.clone(), player.clone()));
-                                // TODO:  handle error
-                                let mut user_room = state.user_room.lock().unwrap();
-                                user_room.insert(another.id.clone(), room_id.clone());
-                                user_room.insert(user_id.clone(), room_id.clone());
-                                // inform both players
-                                let _ = another
-                                    .session
-                                    .text(serde_json::to_string(&ServerMsg::JoinSucc(name.clone(), another.name.clone())).unwrap())
-                                    .await;
+                            if let Some(another) = waiting.pop() {
+                                drop(waiting);
+                                if let Some(answer) = fetch_random_anime(1960, 2026).await {
+                                    let room_id = Uuid::new_v4().to_string();
+                                    
+                                    {
+                                        let mut rooms = state.rooms.lock().unwrap();
+                                        rooms.insert(
+                                            room_id.clone(),
+                                            Room {
+                                                p1: another.clone(),
+                                                p2: player.clone(),
+                                                answer: answer.clone(),
+                                                finished: false,
+                                            },
+                                        );
+                                    }
 
-                                let _ = player
-                                    .session
-                                    .text(serde_json::to_string(&ServerMsg::JoinSucc(name, another.name)).unwrap())
-                                    .await;
+                                    {
+                                        let mut user_room = state.user_room.lock().unwrap();
+                                        user_room.insert(another.id.clone(), room_id.clone());
+                                        user_room.insert(user_id.clone(), room_id.clone());
+                                    }
+
+                                    let _ = another
+                                        .session
+                                        .clone()
+                                        .text(
+                                            serde_json::to_string(&ServerMsg::JoinSucc(
+                                                name.clone(),
+                                                another.name.clone(),
+                                            ))
+                                            .unwrap(),
+                                        )
+                                        .await;
+
+                                    let _ = player
+                                        .session
+                                        .clone()
+                                        .text(
+                                            serde_json::to_string(&ServerMsg::JoinSucc(
+                                                another.name.clone(),
+                                                name,
+                                            ))
+                                            .unwrap(),
+                                        )
+                                        .await;
+                                }
                             } else {
                                 waiting.push(player);
                                 println!("Someone start waiting...");
@@ -104,12 +151,11 @@ pub async fn ws(
                         }
                         ClientMsg::Message(m) => {
                             if let Some(uid) = &current_user_id {
-                                let room_id = state.user_room.lock().unwrap().get(uid).cloned();
-                                if let Some(rid) = room_id {
-                                    // TODO:  handle error
+                                let rid = state.user_room.lock().unwrap().get(uid).cloned();
+                                if let Some(rid) = rid {
                                     let rooms = state.rooms.lock().unwrap();
-                                    if let Some((p1, p2)) = rooms.get(&rid) {
-                                        let target = if p1.id == *uid { p2 } else { p1 };
+                                    if let Some(room) = rooms.get(&rid) {
+                                        let target = if room.p1.id == *uid { &room.p2 } else { &room.p1 };
                                         let _ = target
                                             .session
                                             .clone()
@@ -122,18 +168,59 @@ pub async fn ws(
                                 }
                             }
                         }
+                        ClientMsg::Guess(guess) => {
+                            if let Some(uid) = &current_user_id {
+                                let rid = state.user_room.lock().unwrap().get(uid).cloned();
+                                if let Some(rid) = rid {
+                                    let (is_correct, comparison, answer, p1_id, p1_sess, p2_sess) = {
+                                        let rooms = state.rooms.lock().unwrap();
+                                        if let Some(room) = rooms.get(&rid) {
+                                            let is_correct = is_guess_right(&guess, &room.answer);
+                                            let comparison = compare_anime(&guess, &room.answer);
+                                            (is_correct, comparison, room.answer.clone(), room.p1.id.clone(), room.p1.session.clone(), room.p2.session.clone())
+                                        } else {
+                                            continue;
+                                        }
+                                    };
+
+                                    let cur_sess = if p1_id == *uid { &p1_sess } else { &p2_sess };
+                                    let target_sess = if p1_id == *uid { &p2_sess } else { &p1_sess };
+
+                                    let resp = GuessResponse { is_correct, comparison: comparison.clone() };
+                                    let _ = cur_sess.clone().text(serde_json::to_string(&ServerMsg::GuessResp(resp)).unwrap()).await;
+                                    let _ = target_sess.clone().text(serde_json::to_string(&ServerMsg::OGuessResp(comparison)).unwrap()).await;
+
+                                    if is_correct {
+                                        let _ = cur_sess.clone().text(serde_json::to_string(&ServerMsg::Over(true, answer.clone())).unwrap()).await;
+                                        let _ = target_sess.clone().text(serde_json::to_string(&ServerMsg::Over(false, answer.clone())).unwrap()).await;
+                                        
+                                        let mut rooms = state.rooms.lock().unwrap();
+                                        if let Some(room) = rooms.get_mut(&rid) {
+                                            room.finished = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     };
                 }
                 _ => break,
             }
         }
 
-        // clean up
         if let Some(uid) = current_user_id {
             println!("Cleaning up user: {}", uid);
             state.waiting.lock().unwrap().retain(|p| p.id != uid);
+            
+            let rid = state.user_room.lock().unwrap().remove(&uid);
+            if let Some(rid) = rid {
+                let mut rooms = state.rooms.lock().unwrap();
+                if let Some(room) = rooms.remove(&rid) {
+                    let opponent_id = if room.p1.id == uid { room.p2.id } else { room.p1.id };
+                    state.user_room.lock().unwrap().remove(&opponent_id);
+                }
+            }
         }
-        // TODO: clean up room and user_room
         let _ = session.close(None).await;
     });
 
