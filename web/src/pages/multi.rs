@@ -67,7 +67,7 @@ pub fn Multi() -> impl IntoView {
 
     let (cards, set_cards) = signal::<Vec<(BangumiSubject, CompareResult)>>(vec![]);
     let (_refresh_trigger, set_refresh_trigger) = signal(0);
-    let (answer, set_answer) = signal(None);
+ //   let (answer, set_answer) = signal(None);
 
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
 
@@ -163,6 +163,9 @@ pub fn Multi() -> impl IntoView {
                             });
                         });
                     }
+                    ServerMsg::GuessResp(WsGuessResponse {guess, comparison}) => {
+                        set_cards.update(|c| c.push((guess, comparison)));
+                    }
                     _ => {}
                 }
             }
@@ -205,7 +208,7 @@ pub fn Multi() -> impl IntoView {
             .collect::<Vec<_>>()
     };
 
-    let add_selected_or_first = move || {
+    let send_guess = move || {
         let items = unique_search_results();
         if items.is_empty() {
             return;
@@ -231,21 +234,14 @@ pub fn Multi() -> impl IntoView {
             set_selected_dropdown_index.set(0);
 
             spawn_local(async move {
-                let comp_result = compare_anime(&subject).await;
+                if let Some(tx) = ws_sender.get_value() {
+                    let msg = ClientMsg::Guess(subject.clone());
 
-                let is_win = comp_result.is_correct;
+                    if let Ok(text) = serde_json::to_string(&msg) {
+                        let _ = tx.unbounded_send(Message::Text(text));
+                    }
 
-                set_cards.update(|c| c.push((subject.clone(), comp_result.comparison)));
-                if let Some(ans) = comp_result.answer {
-                    set_answer.set(Some(ans));
-                }
-                let ans_len = cards.get_untracked().len();
-                set_guess_time.set(ans_len);
-
-                if is_win {
-                    set_game_state.set(GameState::Win);
-                } else if ans_len >= current_config.get_untracked().max_guess {
-                    set_game_state.set(GameState::Lose);
+                    set_text.set("".to_string());
                 }
             });
         }
@@ -381,7 +377,7 @@ pub fn Multi() -> impl IntoView {
                                                                 on:click=move |_| {
                                                                     set_user_input.set(name_clone.clone());
                                                                     set_selected_dropdown_index.set(i);
-                                                                    add_selected_or_first();
+                                                                    send_guess();
                                                                 }
                                                             >
                                                                 {item.name_cn}
@@ -404,7 +400,7 @@ pub fn Multi() -> impl IntoView {
                         // send buttons
                         <button
                             disabled=is_interaction_disabled
-                            on:click=move |_| add_selected_or_first()
+                            on:click=move |_| send_guess()
                         >
                             {move || texts().2}
                         </button>

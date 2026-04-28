@@ -14,8 +14,8 @@ pub enum ClientMsg {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct GuessResponse {
-    pub is_correct: bool,
+pub struct WsGuessResponse {
+    pub guess: BangumiSubject,
     pub comparison: CompareResult,
 }
 
@@ -23,7 +23,7 @@ pub struct GuessResponse {
 pub enum ServerMsg {
     JoinSucc(String, String),
     Response(String),
-    GuessResp(GuessResponse),
+    GuessResp(WsGuessResponse),
     OGuessResp(CompareResult), // another guy's resp
     Over(bool, BangumiSubject), 
 }

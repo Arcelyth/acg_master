@@ -32,8 +32,8 @@ pub enum ClientMsg {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct GuessResponse {
-    pub is_correct: bool,
+pub struct WsGuessResponse {
+    pub guess: BangumiSubject,
     pub comparison: CompareResult,
 }
 
@@ -41,7 +41,7 @@ pub struct GuessResponse {
 pub enum ServerMsg {
     JoinSucc(String, String),
     Response(String),
-    GuessResp(GuessResponse),
+    GuessResp(WsGuessResponse),
     OGuessResp(CompareResult), // another guy's resp
     Over(bool, BangumiSubject), 
 }
@@ -186,7 +186,7 @@ pub async fn ws(
                                     let cur_sess = if p1_id == *uid { &p1_sess } else { &p2_sess };
                                     let target_sess = if p1_id == *uid { &p2_sess } else { &p1_sess };
 
-                                    let resp = GuessResponse { is_correct, comparison: comparison.clone() };
+                                    let resp = WsGuessResponse {guess, comparison: comparison.clone() };
                                     let _ = cur_sess.clone().text(serde_json::to_string(&ServerMsg::GuessResp(resp)).unwrap()).await;
                                     let _ = target_sess.clone().text(serde_json::to_string(&ServerMsg::OGuessResp(comparison)).unwrap()).await;
 
