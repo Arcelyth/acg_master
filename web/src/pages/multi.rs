@@ -66,6 +66,7 @@ pub fn Multi() -> impl IntoView {
     let (guess_time, set_guess_time) = signal(0usize);
 
     let (cards, set_cards) = signal::<Vec<(BangumiSubject, CompareResult)>>(vec![]);
+    let (hide_cards, set_hide_cards) = signal::<Vec<BangumiSubjectHide>>(vec![]);
     let (_refresh_trigger, set_refresh_trigger) = signal(0);
     let (answer, set_answer) = signal(None);
 
@@ -165,6 +166,10 @@ pub fn Multi() -> impl IntoView {
                     }
                     ServerMsg::GuessResp(WsGuessResponse { guess, comparison }) => {
                         set_cards.update(|c| c.push((guess, comparison)));
+                    }
+                    ServerMsg::OGuessResp(hide) => {
+
+                        set_hide_cards.update(|c| c.push(hide));
                     }
                     ServerMsg::Over(win, answer) => {
                         if win {

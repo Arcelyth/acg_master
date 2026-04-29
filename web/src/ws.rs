@@ -24,7 +24,7 @@ pub enum ServerMsg {
     JoinSucc(String, String),
     Response(String),
     GuessResp(WsGuessResponse),
-    OGuessResp(CompareResult), // another guy's resp
+    OGuessResp(BangumiSubjectHide), // another guy's resp
     Over(bool, (BangumiSubject, CompareResult)), 
 }
 

@@ -185,3 +185,82 @@ pub fn is_guess_right(guess: &BangumiSubject, answer: &BangumiSubject) -> bool {
         false
     }
 }
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub enum Diff {
+    Right,
+    Wrong,
+    Close,
+    Almost,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct BangumiSubjectHide {
+    pub date: Diff,
+    pub name: bool,
+    pub name_cn: bool,
+    pub tags: Vec<bool>,
+    pub eps: Diff,
+    pub total_episodes: Diff,
+    pub meta_tags: Vec<bool>,
+}
+
+pub fn get_hide_subject(answer: &BangumiSubject, guess: &BangumiSubject) -> BangumiSubjectHide {
+    let date_diff = if guess.date == answer.date {
+        Diff::Right
+    } else if !guess.date.is_empty() && !answer.date.is_empty() {
+        let g_year = guess.date.get(0..4).and_then(|s| s.parse::<i32>().ok());
+        let a_year = answer.date.get(0..4).and_then(|s| s.parse::<i32>().ok());
+        if let (Some(gy), Some(ay)) = (g_year, a_year) {
+            let diff = (gy - ay).abs();
+            if diff == 0 {
+                Diff::Almost
+            } else if diff <= 3 {
+                Diff::Close
+            } else {
+                Diff::Wrong
+            }
+        } else {
+            Diff::Wrong
+        }
+    } else {
+        Diff::Wrong
+    };
+
+    let calc_eps_diff = |g: usize, a: usize| {
+        let diff = (g as i32 - a as i32).abs();
+        if diff == 0 {
+            Diff::Right
+        } else if diff <= 2 {
+            Diff::Almost
+        } else if diff <= 10 {
+            Diff::Close
+        } else {
+            Diff::Wrong
+        }
+    };
+
+    let answer_tags_set: HashSet<String> = answer.tags.iter().map(|t| t.name.clone()).collect();
+    let tags_res = guess
+        .tags
+        .iter()
+        .map(|t| answer_tags_set.contains(&t.name))
+        .collect();
+
+    let answer_meta_set: HashSet<String> = answer.meta_tags.iter().cloned().collect();
+    let meta_res = guess
+        .meta_tags
+        .iter()
+        .map(|t| answer_meta_set.contains(t))
+        .collect();
+
+    BangumiSubjectHide {
+        date: date_diff,
+        name: guess.name == answer.name,
+        name_cn: guess.name_cn == answer.name_cn,
+        tags: tags_res,
+        eps: calc_eps_diff(guess.eps, answer.eps),
+        total_episodes: calc_eps_diff(guess.total_episodes, answer.total_episodes),
+        meta_tags: meta_res,
+    }
+}
