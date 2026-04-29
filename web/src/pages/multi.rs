@@ -13,7 +13,7 @@ use web_sys::window;
 import_crate_style!(styles, "./src/pages/styles/multi.module.scss");
 
 use crate::bangumi::anime::*;
-use crate::components::{back_btn::BackBtn, card::Card};
+use crate::components::{back_btn::BackBtn, card::Card, hide_card::HideCard};
 use crate::config::{Config, Language};
 use crate::ws::*;
 
@@ -444,17 +444,34 @@ pub fn Multi() -> impl IntoView {
 
                     // all the answers
                   <div class=styles::display_section>
-                  <For
-                      each=move || cards.get()
-                      key=|(item, _)| item.id.clone()
-                      children=move |(item, comp_res)| {
-                          view! {
-                              <div>
-                                  <Card info=item comparison=comp_res />
-                              </div>
+                     <div class=styles::hide_answers> 
+                        {move || {
+                            hide_cards.get()
+                                .iter()
+                                .enumerate()
+                                .map(|(_, item)| {
+                                    view! {
+                                  <div>
+                                      <HideCard hide=item.clone() />
+                                  </div>
+
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                            }}
+                    </div>
+                    <div class=styles::your_answers>
+                      <For
+                          each=move || cards.get()
+                          key=|(item, _)| item.id.clone()
+                          children=move |(item, comp_res)| {
+                              view! {
+                                      <Card info=item comparison=comp_res />
+                                  }
                               }
-                          }
-                  />
+                      />
+                    </div>
+                   
                   </div>
 
                   // the final answer
