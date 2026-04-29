@@ -50,9 +50,9 @@ pub fn Multi() -> impl IntoView {
     // timer
     let (elapsed_seconds, set_elapsed_seconds) = signal(0u64);
     let (is_timer_running, set_is_timer_running) = signal(false);
-    let (current_config, set_current_config) = signal(config.get_untracked());
     let (p2_name, set_p2) = signal::<String>("".to_string());
 
+    let (dup, set_dup) = signal(false);
     let (user_input, set_user_input) = signal("".to_string());
     let (debounced_input, set_debounced_input) = signal("".to_string());
     let (input_version, set_input_version) = signal(0);
@@ -152,6 +152,7 @@ pub fn Multi() -> impl IntoView {
             "输入消息",
             "发送",
             "对方已离线",
+            "已在列表中",
         ),
         Language::English => (
             "Input your name",
@@ -166,6 +167,7 @@ pub fn Multi() -> impl IntoView {
             "Input message",
             "Send",
             "The other party is offline",
+            "Already in the list",
         ),
     };
 
@@ -216,6 +218,7 @@ pub fn Multi() -> impl IntoView {
                         set_guess_time.set(0);
                         set_user_input.set("".to_string());
 
+                        set_dup.set(false);
                         set_game_state.set(GameState::Playing);
 
                         set_is_timer_running.set(false);
@@ -268,6 +271,7 @@ pub fn Multi() -> impl IntoView {
     };
 
     let send_guess = move || {
+        set_dup.set(false);
         let items = unique_search_results();
         if items.is_empty() {
             return;
@@ -282,6 +286,7 @@ pub fn Multi() -> impl IntoView {
                 .iter()
                 .any(|(c, _)| c.id == subject.id);
             if exists {
+                set_dup.set(true);
                 return;
             }
 
@@ -406,6 +411,13 @@ pub fn Multi() -> impl IntoView {
                                       on:blur=move |_| set_input_focused.set(false)
                                       on:keydown=on_keydown
                                   />
+                                  {move || {
+                                      if dup.get() {
+                                          view! { <div><span class=styles::dup_message>{move || texts().12}</span></div> }
+                                      } else {
+                                          view! { <div><div style="display:none"></div></div> }
+                                      }
+                                  }}
 
                                   {move || {
                                       let items = unique_search_results();

@@ -31,7 +31,7 @@ pub fn Single() -> impl IntoView {
 
     let (input_focused, set_input_focused) = signal(false);
     let (selected_dropdown_index, set_selected_dropdown_index) = signal(0usize);
-
+    let (dup, set_dup) = signal(false);
     let (guess_time, set_guess_time) = signal(0usize);
     let (game_state, set_game_state) = signal(GameState::Loading);
 
@@ -123,6 +123,7 @@ pub fn Single() -> impl IntoView {
     };
 
     let add_selected_or_first = move || {
+        set_dup.set(false);
         let items = unique_search_results();
         if items.is_empty() {
             return;
@@ -137,6 +138,7 @@ pub fn Single() -> impl IntoView {
                 .iter()
                 .any(|(c, _)| c.id == subject.id);
             if exists {
+                set_dup.set(true);
                 return;
             }
 
@@ -204,7 +206,7 @@ pub fn Single() -> impl IntoView {
         set_cards.set(vec![]);
         set_guess_time.set(0);
         set_user_input.set("".to_string());
-
+        set_dup.set(false);
         set_game_state.set(GameState::Loading);
 
         set_current_config.set(config.get_untracked());
@@ -253,7 +255,13 @@ pub fn Single() -> impl IntoView {
                                     on:blur=move |_| set_input_focused.set(false)
                                     on:keydown=on_keydown
                                 />
-
+                                {move || {
+                                    if dup.get() {
+                                        view! { <div><span class=styles::dup_message>{move || texts().7}</span></div> }
+                                    } else {
+                                        view! { <div><div style="display:none"></div></div> }
+                                    }
+                                }}
                                 {move || {
                                     let items = unique_search_results();
                                     let focused = input_focused.get();

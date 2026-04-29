@@ -177,10 +177,6 @@ main {
   overflow: visible;
 }
 
-.chat_title {
-  display: none;
-}
-
 .chat_messages {
   flex: 1;
   display: flex;
@@ -590,10 +586,6 @@ main {
   text-align: center;
   font-weight: bold;
   margin-bottom: 0.625rem;
-}
-
-.bottom_section {
-  margin-top: 3rem;
 }
 
 :root {

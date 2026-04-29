@@ -159,24 +159,29 @@ pub async fn ws(
                         }
                         ClientMsg::Message(m) => {
                             if let Some(uid) = &current_user_id {
-                                let rid = state.user_room.lock().unwrap().get(uid).cloned();
-                                if let Some(rid) = rid {
-                                    let rooms = state.rooms.lock().unwrap();
-                                    if let Some(room) = rooms.get(&rid) {
-                                        let target = if room.p1.id == *uid {
-                                            &room.p2
-                                        } else {
-                                            &room.p1
-                                        };
-                                        let _ = target
-                                            .session
-                                            .clone()
-                                            .text(
-                                                serde_json::to_string(&ServerMsg::Response(m))
-                                                    .unwrap(),
-                                            )
-                                            .await;
+                                let target_sess = {
+                                    let rid = state.user_room.lock().unwrap().get(uid).cloned();
+
+                                    if let Some(rid) = rid {
+                                        let rooms = state.rooms.lock().unwrap();
+                                        rooms.get(&rid).map(|room| {
+                                            if room.p1.id == *uid {
+                                                room.p2.session.clone()
+                                            } else {
+                                                room.p1.session.clone()
+                                            }
+                                        })
+                                    } else {
+                                        None
                                     }
+                                };
+
+                                if let Some(mut sess) = target_sess {
+                                    let _ = sess
+                                        .text(
+                                            serde_json::to_string(&ServerMsg::Response(m)).unwrap(),
+                                        )
+                                        .await;
                                 }
                             }
                         }
