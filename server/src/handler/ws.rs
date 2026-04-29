@@ -42,7 +42,7 @@ pub enum ServerMsg {
     JoinSucc(String, String),
     Response(String),
     GuessResp(WsGuessResponse),
-    OGuessResp(CompareResult), // another guy's resp
+    OGuessResp(BangumiSubjectHide), // another guy's resp
     Over(bool, (BangumiSubject, CompareResult)), 
 }
 
@@ -84,7 +84,6 @@ pub async fn ws(
                     let Ok(client_msg) = serde_json::from_str::<ClientMsg>(&msg) else {
                         continue;
                     };
-                    println!("receive: {:?}", client_msg);
                     match client_msg {
                         ClientMsg::Join(name) => {
                             let user_id = format!("user-{}", Uuid::new_v4());
@@ -103,6 +102,7 @@ pub async fn ws(
                                     
                                     {
                                         let mut rooms = state.rooms.lock().unwrap();
+                                        println!("Generate answer: {} \n {}", answer.name, answer.name_cn);
                                         rooms.insert(
                                             room_id.clone(),
                                             Room {
@@ -172,13 +172,14 @@ pub async fn ws(
                             if let Some(uid) = &current_user_id {
                                 let rid = state.user_room.lock().unwrap().get(uid).cloned();
                                 if let Some(rid) = rid {
-                                    let (is_correct, comparison, answer, p1_id, p1_sess, p2_sess, right_comp) = {
+                                    let (is_correct, comparison, answer, p1_id, p1_sess, p2_sess, right_comp, comp_hide) = {
                                         let rooms = state.rooms.lock().unwrap();
                                         if let Some(room) = rooms.get(&rid) {
                                             let is_correct = is_guess_right(&guess, &room.answer);
                                             let comparison = compare_anime(&guess, &room.answer);
                                             let right_comp= compare_anime(&room.answer, &room.answer);
-                                            (is_correct, comparison, room.answer.clone(), room.p1.id.clone(), room.p1.session.clone(), room.p2.session.clone(), right_comp)
+                                            let comp_hide= get_hide_subject(&room.answer, &guess);
+                                            (is_correct, comparison, room.answer.clone(), room.p1.id.clone(), room.p1.session.clone(), room.p2.session.clone(), right_comp, comp_hide)
                                         } else {
                                             continue;
                                         }
@@ -189,7 +190,7 @@ pub async fn ws(
 
                                     let resp = WsGuessResponse {guess, comparison: comparison.clone() };
                                     let _ = cur_sess.clone().text(serde_json::to_string(&ServerMsg::GuessResp(resp)).unwrap()).await;
-                                    let _ = target_sess.clone().text(serde_json::to_string(&ServerMsg::OGuessResp(comparison)).unwrap()).await;
+                                    let _ = target_sess.clone().text(serde_json::to_string(&ServerMsg::OGuessResp(comp_hide)).unwrap()).await;
 
                                     if is_correct {
                                         let _ = cur_sess.clone().text(serde_json::to_string(&ServerMsg::Over(true, (answer.clone(), right_comp.clone()))).unwrap()).await;
