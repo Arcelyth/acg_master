@@ -43,7 +43,7 @@ pub enum ServerMsg {
     Response(String),
     GuessResp(WsGuessResponse),
     OGuessResp(CompareResult), // another guy's resp
-    Over(bool, BangumiSubject), 
+    Over(bool, (BangumiSubject, CompareResult)), 
 }
 
 #[derive(Clone)]
@@ -172,12 +172,13 @@ pub async fn ws(
                             if let Some(uid) = &current_user_id {
                                 let rid = state.user_room.lock().unwrap().get(uid).cloned();
                                 if let Some(rid) = rid {
-                                    let (is_correct, comparison, answer, p1_id, p1_sess, p2_sess) = {
+                                    let (is_correct, comparison, answer, p1_id, p1_sess, p2_sess, right_comp) = {
                                         let rooms = state.rooms.lock().unwrap();
                                         if let Some(room) = rooms.get(&rid) {
                                             let is_correct = is_guess_right(&guess, &room.answer);
                                             let comparison = compare_anime(&guess, &room.answer);
-                                            (is_correct, comparison, room.answer.clone(), room.p1.id.clone(), room.p1.session.clone(), room.p2.session.clone())
+                                            let right_comp= compare_anime(&room.answer, &room.answer);
+                                            (is_correct, comparison, room.answer.clone(), room.p1.id.clone(), room.p1.session.clone(), room.p2.session.clone(), right_comp)
                                         } else {
                                             continue;
                                         }
@@ -191,8 +192,8 @@ pub async fn ws(
                                     let _ = target_sess.clone().text(serde_json::to_string(&ServerMsg::OGuessResp(comparison)).unwrap()).await;
 
                                     if is_correct {
-                                        let _ = cur_sess.clone().text(serde_json::to_string(&ServerMsg::Over(true, answer.clone())).unwrap()).await;
-                                        let _ = target_sess.clone().text(serde_json::to_string(&ServerMsg::Over(false, answer.clone())).unwrap()).await;
+                                        let _ = cur_sess.clone().text(serde_json::to_string(&ServerMsg::Over(true, (answer.clone(), right_comp.clone()))).unwrap()).await;
+                                        let _ = target_sess.clone().text(serde_json::to_string(&ServerMsg::Over(false, (answer.clone(), right_comp))).unwrap()).await;
                                         
                                         let mut rooms = state.rooms.lock().unwrap();
                                         if let Some(room) = rooms.get_mut(&rid) {

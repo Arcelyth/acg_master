@@ -25,7 +25,7 @@ pub enum ServerMsg {
     Response(String),
     GuessResp(WsGuessResponse),
     OGuessResp(CompareResult), // another guy's resp
-    Over(bool, BangumiSubject), 
+    Over(bool, (BangumiSubject, CompareResult)), 
 }
 
 pub fn connect_ws(

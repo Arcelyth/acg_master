@@ -384,8 +384,6 @@ pub fn Single() -> impl IntoView {
                         }
                     }}
                 </div>
-
-                <div class=styles::bottom_section></div>
             </main>
         </ErrorBoundary>
     }

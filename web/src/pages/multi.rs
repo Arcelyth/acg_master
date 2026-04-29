@@ -13,7 +13,7 @@ use web_sys::window;
 import_crate_style!(styles, "./src/pages/styles/multi.module.scss");
 
 use crate::bangumi::anime::*;
-use crate::components::back_btn::BackBtn;
+use crate::components::{back_btn::BackBtn, card::Card};
 use crate::config::{Config, Language};
 use crate::ws::*;
 
@@ -67,7 +67,7 @@ pub fn Multi() -> impl IntoView {
 
     let (cards, set_cards) = signal::<Vec<(BangumiSubject, CompareResult)>>(vec![]);
     let (_refresh_trigger, set_refresh_trigger) = signal(0);
- //   let (answer, set_answer) = signal(None);
+    let (answer, set_answer) = signal(None);
 
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
 
@@ -163,8 +163,16 @@ pub fn Multi() -> impl IntoView {
                             });
                         });
                     }
-                    ServerMsg::GuessResp(WsGuessResponse {guess, comparison}) => {
+                    ServerMsg::GuessResp(WsGuessResponse { guess, comparison }) => {
                         set_cards.update(|c| c.push((guess, comparison)));
+                    }
+                    ServerMsg::Over(win, answer) => {
+                        if win {
+                            set_game_state.set(GameState::Win);
+                        } else {
+                            set_game_state.set(GameState::Win);
+                        }
+                        set_answer.set(Some(answer));
                     }
                     _ => {}
                 }
@@ -190,12 +198,21 @@ pub fn Multi() -> impl IntoView {
     };
 
     let texts = move || match config.get().lang {
-        Language::Chinese => ("输入名称", "开始匹配", "匹配中......", "输入动漫名称"),
+        Language::Chinese => (
+            "输入名称",
+            "开始匹配",
+            "匹配中......",
+            "输入动漫名称",
+            "你赢了",
+            "你输了",
+        ),
         Language::English => (
             "Input your name",
             "Start matching",
             "Matching...",
             "Input anime's name",
+            "You Win",
+            "You Lose",
         ),
     };
 
@@ -303,174 +320,229 @@ pub fn Multi() -> impl IntoView {
     };
 
     view! {
-          <ErrorBoundary fallback=|errors| {
-              view! {
-                  <h1>"Uh oh! Something went wrong!"</h1>
-                  <ul>
-                      {move || errors.get().into_iter().map(|(_, e)| view! { <li>{e.to_string()}</li> }).collect_view()}
-                  </ul>
-              }
-          }>
-              <main>
-                  <div class=styles::top_section>
-                      <BackBtn />
-                  </div>
-
-                  <Show when=move || game_state.get() == GameState::Lobby || game_state.get() == GameState::Matching>
-                      <div class=styles::lobby_section>
-                          <input
-                              class=styles::username_input
-                              placeholder=texts().0
-                              bind:value=(username, set_username)
-                          />
-                          <button class=styles::match_btn on:click=start_match disabled=move || game_state.get() == GameState::Matching>
-                              {move || if game_state.get() == GameState::Matching { texts().2 } else { texts().1 }}
-                          </button>
-                      </div>
-                  </Show>
-                  <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
-                        // show names
-                        <div class=styles::player_panel>
-                            <div class=styles::player_me>
-                                {move || username.get()}
-                            </div>
-                            <div class=styles::player_other>
-                                {move || p2_name.get()}
-                            </div>
-                        </div>
-
-             <div class=styles::interact_section>
-                    <div class=styles::search_wrapper>
-                       <div class=styles::input_section>
-                            <span> {move || texts().1}: </span>
-
-                            <div class=styles::input_container>
-                                <input
-                                    placeholder={move || texts().3}
-                                    type="text"
-                                    disabled=is_interaction_disabled
-                                    bind:value=(user_input, set_user_input)
-                                    on:focus=move |_| set_input_focused.set(true)
-                                    on:blur=move |_| set_input_focused.set(false)
-                                    on:keydown=on_keydown
-                                />
-
-                                {move || {
-                                    let items = unique_search_results();
-                                    let focused = input_focused.get();
-                                    let input_val = user_input.get();
-
-                                    if focused && !items.is_empty() && !input_val.is_empty() {
-                                        view! {
-                                            <div>
-                                            <ul class=styles::dropdown_list>
-                                                <For
-                                                    each=move || items.clone().into_iter().enumerate()
-                                                    key=|(_, item)| item.id.clone()
-                                                    children=move |(i, item)| {
-                                                        let is_selected = move || selected_dropdown_index.get() == i;
-                                                        let name_clone = item.name_cn.clone();
-                                                        view! {
-                                                            <li
-                                                                class=move || if is_selected() { styles::dropdown_item_active } else { styles::dropdown_item }
-                                                                on:mousedown=move |ev| ev.prevent_default()
-                                                                on:click=move |_| {
-                                                                    set_user_input.set(name_clone.clone());
-                                                                    set_selected_dropdown_index.set(i);
-                                                                    send_guess();
-                                                                }
-                                                            >
-                                                                {item.name_cn}
-                                                            </li>
-                                                        }
-                                                    }
-                                                />
-                                            </ul>
-                                            </div>
-                                        }
-                                    } else {
-                                        view! { <div><ul style="display:none"></ul></div> }
-                                    }
-                                }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class=styles::button_section>
-                        // send buttons
-                        <button
-                            disabled=is_interaction_disabled
-                            on:click=move |_| send_guess()
-                        >
-                            {move || texts().2}
-                        </button>
-                        // reset button
-                        <button
-                            class=styles::reset_btn
-                            on:click=reset_game
-                        >
-                            {reset_icon}
-                        </button>
-                        </div>
-                    <div class=styles::guess_number>
-                        <span> {guess_time}/{current_config.get().max_guess} </span>
-                    </div>
-                    <div class=styles::timer>
-                        <span class=styles::timer_text> {formatted_time} </span>
-                    </div>
+        <ErrorBoundary fallback=|errors| {
+            view! {
+                <h1>"Uh oh! Something went wrong!"</h1>
+                <ul>
+                    {move || errors.get().into_iter().map(|(_, e)| view! { <li>{e.to_string()}</li> }).collect_view()}
+                </ul>
+            }
+        }>
+            <main>
+                <div class=styles::top_section>
+                    <BackBtn />
                 </div>
 
-
-                    </Show>
-
-
-
-              </main>
-
-                  // chat
-    <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
-                      <div class=styles::chat_panel>
-
-                          <div class=styles::chat_messages>
-                              {move || {
-                              chat_log.get()
-                                  .iter()
-                                  .enumerate()
-                                  .map(|(_, item)| {
-                                      let bubble_class = match item.side {
-                                          ChatSide::I => styles::chat_item_me,
-                                          ChatSide::O => styles::chat_item_other,
-                                      };
-                                      view! {
-                                          <div class=bubble_class>
-                                              {format!("{}", item.content.clone())}
-                                          </div>
-                                      }
-                                  })
-                                  .collect::<Vec<_>>()
-                              }}
-
+                <Show when=move || game_state.get() == GameState::Lobby || game_state.get() == GameState::Matching>
+                    <div class=styles::lobby_section>
+                        <input
+                            class=styles::username_input
+                            placeholder=texts().0
+                            bind:value=(username, set_username)
+                        />
+                        <button class=styles::match_btn on:click=start_match disabled=move || game_state.get() == GameState::Matching>
+                            {move || if game_state.get() == GameState::Matching { texts().2 } else { texts().1 }}
+                        </button>
+                    </div>
+                </Show>
+                <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
+                      // show names
+                      <div class=styles::player_panel>
+                          <div class=styles::player_me>
+                              {move || username.get()}
                           </div>
-                          <div class=styles::chat_input_row>
-                              <input
-                                  class=styles::chat_input
-                                  placeholder="message..."
-                                  bind:value=(text, set_text)
-                                  disabled=move || game_state.get() == GameState::Matching
-                              />
-                              <button
-                                  class=styles::chat_send
-                                  on:click=send_text
-                                  disabled=move || game_state.get() == GameState::Matching
-                              >
-                                  "Send"
-                              </button>
+                          <div class=styles::player_other>
+                              {move || p2_name.get()}
                           </div>
                       </div>
+                  // interact section
+                   <div class=styles::interact_section>
+                      <div class=styles::search_wrapper>
+                         <div class=styles::input_section>
+                              <span> {move || texts().1}: </span>
+
+                              <div class=styles::input_container>
+                                  <input
+                                      placeholder={move || texts().3}
+                                      type="text"
+                                      disabled=is_interaction_disabled
+                                      bind:value=(user_input, set_user_input)
+                                      on:focus=move |_| set_input_focused.set(true)
+                                      on:blur=move |_| set_input_focused.set(false)
+                                      on:keydown=on_keydown
+                                  />
+
+                                  {move || {
+                                      let items = unique_search_results();
+                                      let focused = input_focused.get();
+                                      let input_val = user_input.get();
+
+                                      if focused && !items.is_empty() && !input_val.is_empty() {
+                                          view! {
+                                              <div>
+                                              <ul class=styles::dropdown_list>
+                                                  <For
+                                                      each=move || items.clone().into_iter().enumerate()
+                                                      key=|(_, item)| item.id.clone()
+                                                      children=move |(i, item)| {
+                                                          let is_selected = move || selected_dropdown_index.get() == i;
+                                                          let name_clone = item.name_cn.clone();
+                                                          view! {
+                                                              <li
+                                                                  class=move || if is_selected() { styles::dropdown_item_active } else { styles::dropdown_item }
+                                                                  on:mousedown=move |ev| ev.prevent_default()
+                                                                  on:click=move |_| {
+                                                                      set_user_input.set(name_clone.clone());
+                                                                      set_selected_dropdown_index.set(i);
+                                                                      send_guess();
+                                                                  }
+                                                              >
+                                                                  {item.name_cn}
+                                                              </li>
+                                                          }
+                                                      }
+                                                  />
+                                              </ul>
+                                              </div>
+                                          }
+                                      } else {
+                                          view! { <div><ul style="display:none"></ul></div> }
+                                      }
+                                  }}
+                              </div>
+                          </div>
+                      </div>
+
+                      <div class=styles::button_section>
+                          // send buttons
+                          <button
+                              disabled=is_interaction_disabled
+                              on:click=move |_| send_guess()
+                          >
+                              {move || texts().2}
+                          </button>
+                          // reset button
+                          <button
+                              class=styles::reset_btn
+                              on:click=reset_game
+                          >
+                              {reset_icon}
+                          </button>
+                          </div>
+                      <div class=styles::guess_number>
+                          <span> {guess_time}/{current_config.get().max_guess} </span>
+                      </div>
+                      <div class=styles::timer>
+                          <span class=styles::timer_text> {formatted_time} </span>
+                      </div>
+                  </div>
+
+                    // all the answers
+                  <div class=styles::display_section>
+                  <For
+                      each=move || cards.get()
+                      key=|(item, _)| item.id.clone()
+                      children=move |(item, comp_res)| {
+                          view! {
+                              <div>
+                                  <Card info=item comparison=comp_res />
+                              </div>
+                              }
+                          }
+                  />
+                  </div>
+
+                  // the final answer
+                   <div class=styles::answer_reveal_section>
+                      {move || {
+                          let state = game_state.get();
+                          if state == GameState::Win || state == GameState::Lose {
+                              let (status_text, status_class) = match state {
+                                  GameState::Win => (texts().4, styles::status_win),
+                                  GameState::Lose => (texts().5, styles::status_lose),
+                                  _ => ("", ""),
+                              };
+
+                              view! {
+                                  <div>
+                                      <div class=styles::reveal_container>
+                                          <h2 class=status_class>{move || status_text}</h2>
+                                          <h4 class=status_class>{guess_time}/{current_config.get().max_guess}</h4>
+                                          <h4 class=status_class>Time: {formatted_time}</h4>
+                                          <button
+                                              class=styles::reset_btn
+                                              on:click=reset_game
+                                          >
+                                              {reset_icon}
+                                          </button>
+                                          <hr class=styles::divider />
+                                          <p class=styles::reveal_text> {move || texts().5} </p>
+
+                                          <Suspense fallback=|| view! { "..." }>
+                                              {move || Suspend::new(async move {
+                                                  match answer.get() {
+                                                      Some(a) => view! {<div> <Card info=a.0.clone() comparison=a.1/> </div>},
+                                                      None => view! { <div><span></span> </div> }
+                                                  }
+                                              })}
+                                          </Suspense>
+                                      </div>
+                                  </div>
+                              }
+                          } else {
+                              view! { <div><div style="display:none"></div></div> }
+                          }
+                      }}
+                  </div>
+
                   </Show>
 
-          </ErrorBoundary>
-      }
+            </main>
+
+                // chat
+              <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
+                    <div class=styles::chat_panel>
+
+                        <div class=styles::chat_messages>
+                            {move || {
+                            chat_log.get()
+                                .iter()
+                                .enumerate()
+                                .map(|(_, item)| {
+                                    let bubble_class = match item.side {
+                                        ChatSide::I => styles::chat_item_me,
+                                        ChatSide::O => styles::chat_item_other,
+                                    };
+                                    view! {
+                                        <div class=bubble_class>
+                                            {format!("{}", item.content.clone())}
+                                        </div>
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                            }}
+
+                        </div>
+                        <div class=styles::chat_input_row>
+                            <input
+                                class=styles::chat_input
+                                placeholder="message..."
+                                bind:value=(text, set_text)
+                                disabled=move || game_state.get() == GameState::Matching
+                            />
+                            <button
+                                class=styles::chat_send
+                                on:click=send_text
+                                disabled=move || game_state.get() == GameState::Matching
+                            >
+                                "Send"
+                            </button>
+                        </div>
+                    </div>
+                </Show>
+
+        </ErrorBoundary>
+    }
 }
 
 pub fn use_interval<T, F>(interval_millis: T, f: F)
