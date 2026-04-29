@@ -30,6 +30,7 @@ pub enum ClientMsg {
     Message(String),
     Guess(BangumiSubject),
     Reset,
+    ILeave, // sender leave
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -47,7 +48,7 @@ pub enum ServerMsg {
     Over(bool, (BangumiSubject, CompareResult)),
     Reset,
     ResetOk,
-    Leave(BangumiSubject, CompareResult),
+    Leave(BangumiSubject, CompareResult),   // opponent leave
 }
 
 #[derive(Clone)]
@@ -331,6 +332,7 @@ pub async fn ws(
                                 }
                             }
                         }
+                        ClientMsg::ILeave => break,
                     };
                 }
                 _ => break,

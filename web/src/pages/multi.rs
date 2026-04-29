@@ -72,6 +72,15 @@ pub fn Multi() -> impl IntoView {
 
     let max_guess = 20;
 
+    // disconnect
+    on_cleanup(move || {
+        if let Some(tx) = ws_sender.get_value() {
+            let _ = tx.unbounded_send(Message::Text(
+                serde_json::to_string(&ClientMsg::ILeave).unwrap(),
+            ));
+        }
+    });
+
     Effect::new(move |_| {
         let state = game_state.get();
         if state == GameState::Win || state == GameState::Lose {
@@ -156,7 +165,7 @@ pub fn Multi() -> impl IntoView {
             "Waiting for the opponent...",
             "Input message",
             "Send",
-            "The other party is offline"
+            "The other party is offline",
         ),
     };
 
@@ -363,7 +372,7 @@ pub fn Multi() -> impl IntoView {
                     <div class=styles::lobby_section>
                         <input
                             class=styles::username_input
-                            placeholder=texts().7
+                            placeholder=texts().0
                             bind:value=(username, set_username)
                         />
                         <button class=styles::match_btn on:click=start_match disabled=move || game_state.get() == GameState::Matching>

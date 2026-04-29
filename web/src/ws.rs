@@ -12,6 +12,7 @@ pub enum ClientMsg {
     Message(String),
     Guess(BangumiSubject),
     Reset,
+    ILeave,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
