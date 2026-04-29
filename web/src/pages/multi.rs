@@ -1,14 +1,10 @@
-use futures::{SinkExt, StreamExt};
-use gloo_net::websocket::{Message, futures::WebSocket};
+use gloo_net::websocket::Message;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::collections::HashSet;
 use std::time::Duration;
 use stylance::import_crate_style;
-use web_sys::window;
 
 import_crate_style!(styles, "./src/pages/styles/multi.module.scss");
 
@@ -72,22 +68,12 @@ pub fn Multi() -> impl IntoView {
 
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
 
+    let max_guess = 20;
+
     Effect::new(move |_| {
         let state = game_state.get();
         if state == GameState::Win || state == GameState::Lose {
             set_is_timer_running.set(false);
-        }
-    });
-
-    // Loading -> Playing
-    Effect::new(move |_| {
-        if game_state.get() == GameState::Loading {
-            spawn_local(async move {
-                let success = anime_start_game(current_config.get_untracked()).await;
-                if success {
-                    set_game_state.set(GameState::Playing);
-                }
-            });
         }
     });
 
@@ -166,20 +152,23 @@ pub fn Multi() -> impl IntoView {
                     }
                     ServerMsg::GuessResp(WsGuessResponse { guess, comparison }) => {
                         set_cards.update(|c| c.push((guess, comparison)));
+                        let ans_len = cards.get_untracked().len();
+                        set_guess_time.set(ans_len);
                     }
                     ServerMsg::OGuessResp(hide) => {
-
+                        if hide_cards.get_untracked().is_empty() {
+                            set_is_timer_running.set(true);
+                        }
                         set_hide_cards.update(|c| c.push(hide));
                     }
                     ServerMsg::Over(win, answer) => {
                         if win {
                             set_game_state.set(GameState::Win);
                         } else {
-                            set_game_state.set(GameState::Win);
+                            set_game_state.set(GameState::Lose);
                         }
                         set_answer.set(Some(answer));
                     }
-                    _ => {}
                 }
             }
         });
@@ -210,6 +199,8 @@ pub fn Multi() -> impl IntoView {
             "输入动漫名称",
             "你赢了",
             "你输了",
+            "发送",
+            "输入你的答案",
         ),
         Language::English => (
             "Input your name",
@@ -218,6 +209,8 @@ pub fn Multi() -> impl IntoView {
             "Input anime's name",
             "You Win",
             "You Lose",
+            "Send",
+            "Input your answer",
         ),
     };
 
@@ -342,7 +335,7 @@ pub fn Multi() -> impl IntoView {
                     <div class=styles::lobby_section>
                         <input
                             class=styles::username_input
-                            placeholder=texts().0
+                            placeholder=texts().7
                             bind:value=(username, set_username)
                         />
                         <button class=styles::match_btn on:click=start_match disabled=move || game_state.get() == GameState::Matching>
@@ -424,18 +417,12 @@ pub fn Multi() -> impl IntoView {
                               disabled=is_interaction_disabled
                               on:click=move |_| send_guess()
                           >
-                              {move || texts().2}
+                              {move || texts().6}
                           </button>
-                          // reset button
-                          <button
-                              class=styles::reset_btn
-                              on:click=reset_game
-                          >
-                              {reset_icon}
-                          </button>
+
                           </div>
                       <div class=styles::guess_number>
-                          <span> {guess_time}/{current_config.get().max_guess} </span>
+                          <span> {guess_time}/{max_guess} </span>
                       </div>
                       <div class=styles::timer>
                           <span class=styles::timer_text> {formatted_time} </span>
@@ -444,7 +431,7 @@ pub fn Multi() -> impl IntoView {
 
                     // all the answers
                   <div class=styles::display_section>
-                     <div class=styles::hide_answers> 
+                     <div class=styles::hide_answers>
                         {move || {
                             hide_cards.get()
                                 .iter()
@@ -471,7 +458,7 @@ pub fn Multi() -> impl IntoView {
                               }
                       />
                     </div>
-                   
+
                   </div>
 
                   // the final answer
@@ -489,7 +476,7 @@ pub fn Multi() -> impl IntoView {
                                   <div>
                                       <div class=styles::reveal_container>
                                           <h2 class=status_class>{move || status_text}</h2>
-                                          <h4 class=status_class>{guess_time}/{current_config.get().max_guess}</h4>
+                                          <h4 class=status_class>{guess_time}/{max_guess}</h4>
                                           <h4 class=status_class>Time: {formatted_time}</h4>
                                           <button
                                               class=styles::reset_btn
