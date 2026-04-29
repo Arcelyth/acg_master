@@ -27,6 +27,7 @@ pub enum GameState {
 pub enum ChatSide {
     I,
     O,
+    Sys,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -128,6 +129,37 @@ pub fn Multi() -> impl IntoView {
         }
     };
 
+    let texts = move || match config.get().lang {
+        Language::Chinese => (
+            "输入名称",
+            "开始匹配",
+            "匹配中......",
+            "输入动漫名称",
+            "你赢了",
+            "你输了",
+            "发送",
+            "输入你的答案",
+            "等待对方中......",
+            "输入消息",
+            "发送",
+            "对方已离线",
+        ),
+        Language::English => (
+            "Input your name",
+            "Start matching",
+            "Matching...",
+            "Input anime's name",
+            "You Win",
+            "You Lose",
+            "Send",
+            "Input your answer",
+            "Waiting for the opponent...",
+            "Input message",
+            "Send",
+            "The other party is offline"
+        ),
+    };
+
     let connect = move |_| {
         let sender = connect_ws(move |msg| {
             println!("recv: {}", msg);
@@ -185,6 +217,16 @@ pub fn Multi() -> impl IntoView {
                     ServerMsg::ResetOk => {
                         set_send_reset.set(true);
                     }
+                    ServerMsg::Leave(answer, comp) => {
+                        set_chat_log.update(|v| {
+                            v.push(ChatEntry {
+                                side: ChatSide::Sys,
+                                content: texts().11.to_string(),
+                            });
+                        });
+                        set_answer.set(Some((answer, comp)));
+                        set_game_state.set(GameState::Win);
+                    }
                 }
             }
         });
@@ -205,35 +247,6 @@ pub fn Multi() -> impl IntoView {
         set_game_state.set(GameState::Matching);
 
         connect(());
-    };
-
-    let texts = move || match config.get().lang {
-        Language::Chinese => (
-            "输入名称",
-            "开始匹配",
-            "匹配中......",
-            "输入动漫名称",
-            "你赢了",
-            "你输了",
-            "发送",
-            "输入你的答案",
-            "等待对方中......",
-            "输入消息",
-            "发送",
-        ),
-        Language::English => (
-            "Input your name",
-            "Start matching",
-            "Matching...",
-            "Input anime's name",
-            "You Win",
-            "You Lose",
-            "Send",
-            "Input your answer",
-            "Waiting for the opponent...",
-            "Input message",
-            "Send",
-        ),
     };
 
     let unique_search_results = move || {
@@ -502,8 +515,8 @@ pub fn Multi() -> impl IntoView {
                                                 {reset_icon}
                                             </button>
 
-                                            <Show 
-                                                when=move || send_reset.get() 
+                                            <Show
+                                                when=move || send_reset.get()
                                                 fallback=|| ()
                                             >
                                                 <span class=styles::reset_hint>
@@ -548,6 +561,7 @@ pub fn Multi() -> impl IntoView {
                                     let bubble_class = match item.side {
                                         ChatSide::I => styles::chat_item_me,
                                         ChatSide::O => styles::chat_item_other,
+                                        ChatSide::Sys => styles::chat_item_sys,
                                     };
                                     view! {
                                         <div class=bubble_class>

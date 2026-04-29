@@ -29,6 +29,7 @@ pub enum ServerMsg {
     Over(bool, (BangumiSubject, CompareResult)), 
     Reset,
     ResetOk,
+    Leave(BangumiSubject, CompareResult),
 }
 
 pub fn connect_ws(

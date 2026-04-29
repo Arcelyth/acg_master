@@ -47,6 +47,7 @@ pub enum ServerMsg {
     Over(bool, (BangumiSubject, CompareResult)),
     Reset,
     ResetOk,
+    Leave(BangumiSubject, CompareResult),
 }
 
 #[derive(Clone)]
@@ -276,27 +277,26 @@ pub async fn ws(
                                             room.reset.1 = true;
                                         };
 
-
                                         // restart game
                                         if room.p1.id == *uid {
-                                                let _ = room
-                                                    .p1
-                                                    .session
-                                                    .text(
-                                                        serde_json::to_string(&ServerMsg::ResetOk)
-                                                            .unwrap(),
-                                                    )
-                                                    .await;
-                                            } else {
-                                                let _ = room
-                                                    .p2
-                                                    .session
-                                                    .text(
-                                                        serde_json::to_string(&ServerMsg::ResetOk)
-                                                            .unwrap(),
-                                                    )
-                                                    .await;
-                                            };
+                                            let _ = room
+                                                .p1
+                                                .session
+                                                .text(
+                                                    serde_json::to_string(&ServerMsg::ResetOk)
+                                                        .unwrap(),
+                                                )
+                                                .await;
+                                        } else {
+                                            let _ = room
+                                                .p2
+                                                .session
+                                                .text(
+                                                    serde_json::to_string(&ServerMsg::ResetOk)
+                                                        .unwrap(),
+                                                )
+                                                .await;
+                                        };
                                         if room.reset == (true, true) {
                                             if let Some(answer) =
                                                 fetch_random_anime(1960, 2026).await
@@ -345,12 +345,24 @@ pub async fn ws(
             if let Some(rid) = rid {
                 let mut rooms = state.rooms.lock().unwrap();
                 if let Some(room) = rooms.remove(&rid) {
+                    let mut opponent_session = if room.p1.id == uid {
+                        room.p2.session.clone()
+                    } else {
+                        room.p1.session.clone()
+                    };
                     let opponent_id = if room.p1.id == uid {
                         room.p2.id
                     } else {
                         room.p1.id
                     };
+
                     state.user_room.lock().unwrap().remove(&opponent_id);
+                    drop(rooms);
+                    let right_comp = compare_anime(&room.answer, &room.answer);
+
+                    let _ = opponent_session
+                        .text(serde_json::to_string(&ServerMsg::Leave(room.answer, right_comp)).unwrap())
+                        .await;
                 }
             }
         }

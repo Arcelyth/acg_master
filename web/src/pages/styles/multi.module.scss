@@ -231,6 +231,14 @@ main {
   border: 1px solid rgba(255, 255, 255, 0.1); 
 }
 
+.chat_item_sys {
+  align-self: center;
+  color: #ff4d4f;
+  font-weight: 500;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+}
+
 .chat_input_row {
   display: flex;
   gap: 0.5rem;
