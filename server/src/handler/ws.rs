@@ -46,6 +46,7 @@ pub enum ServerMsg {
     OGuessResp(BangumiSubjectHide), // another guy's resp
     Over(bool, (BangumiSubject, CompareResult)),
     Reset,
+    ResetOk,
 }
 
 #[derive(Clone)]
@@ -275,7 +276,27 @@ pub async fn ws(
                                             room.reset.1 = true;
                                         };
 
+
                                         // restart game
+                                        if room.p1.id == *uid {
+                                                let _ = room
+                                                    .p1
+                                                    .session
+                                                    .text(
+                                                        serde_json::to_string(&ServerMsg::ResetOk)
+                                                            .unwrap(),
+                                                    )
+                                                    .await;
+                                            } else {
+                                                let _ = room
+                                                    .p2
+                                                    .session
+                                                    .text(
+                                                        serde_json::to_string(&ServerMsg::ResetOk)
+                                                            .unwrap(),
+                                                    )
+                                                    .await;
+                                            };
                                         if room.reset == (true, true) {
                                             if let Some(answer) =
                                                 fetch_random_anime(1960, 2026).await

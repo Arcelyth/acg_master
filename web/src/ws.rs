@@ -11,6 +11,7 @@ pub enum ClientMsg {
     Join(String), // name
     Message(String),
     Guess(BangumiSubject),
+    Reset,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -26,6 +27,8 @@ pub enum ServerMsg {
     GuessResp(WsGuessResponse),
     OGuessResp(BangumiSubjectHide), // another guy's resp
     Over(bool, (BangumiSubject, CompareResult)), 
+    Reset,
+    ResetOk,
 }
 
 pub fn connect_ws(

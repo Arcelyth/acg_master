@@ -65,6 +65,7 @@ pub fn Multi() -> impl IntoView {
     let (hide_cards, set_hide_cards) = signal::<Vec<BangumiSubjectHide>>(vec![]);
     let (_refresh_trigger, set_refresh_trigger) = signal(0);
     let (answer, set_answer) = signal(None);
+    let (send_reset, set_send_reset) = signal(false);
 
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
 
@@ -169,6 +170,22 @@ pub fn Multi() -> impl IntoView {
                         }
                         set_answer.set(Some(answer));
                     }
+                    ServerMsg::Reset => {
+                        set_cards.set(vec![]);
+                        set_hide_cards.set(vec![]);
+                        set_guess_time.set(0);
+                        set_user_input.set("".to_string());
+
+                        set_game_state.set(GameState::Playing);
+
+                        set_is_timer_running.set(false);
+                        set_elapsed_seconds.set(0);
+
+                        set_refresh_trigger.update(|n| *n += 1);
+                    }
+                    ServerMsg::ResetOk => {
+                        set_send_reset.set(true);
+                    }
                 }
             }
         });
@@ -201,6 +218,7 @@ pub fn Multi() -> impl IntoView {
             "你输了",
             "发送",
             "输入你的答案",
+            "等待对方中......",
         ),
         Language::English => (
             "Input your name",
@@ -211,6 +229,7 @@ pub fn Multi() -> impl IntoView {
             "You Lose",
             "Send",
             "Input your answer",
+            "Waiting for the opponent...",
         ),
     };
 
@@ -255,8 +274,6 @@ pub fn Multi() -> impl IntoView {
                     if let Ok(text) = serde_json::to_string(&msg) {
                         let _ = tx.unbounded_send(Message::Text(text));
                     }
-
-                    set_text.set("".to_string());
                 }
             });
         }
@@ -295,18 +312,13 @@ pub fn Multi() -> impl IntoView {
     let is_interaction_disabled = move || game_state.get() != GameState::Playing;
 
     let reset_game = move |_| {
-        set_cards.set(vec![]);
-        set_guess_time.set(0);
-        set_user_input.set("".to_string());
+        if let Some(tx) = ws_sender.get_value() {
+            let msg = ClientMsg::Reset;
 
-        set_game_state.set(GameState::Loading);
-
-        set_current_config.set(config.get_untracked());
-
-        set_is_timer_running.set(false);
-        set_elapsed_seconds.set(0);
-
-        set_refresh_trigger.update(|n| *n += 1);
+            if let Ok(text) = serde_json::to_string(&msg) {
+                let _ = tx.unbounded_send(Message::Text(text));
+            }
+        }
     };
 
     let reset_icon = move || {
@@ -478,12 +490,24 @@ pub fn Multi() -> impl IntoView {
                                           <h2 class=status_class>{move || status_text}</h2>
                                           <h4 class=status_class>{guess_time}/{max_guess}</h4>
                                           <h4 class=status_class>Time: {formatted_time}</h4>
-                                          <button
-                                              class=styles::reset_btn
-                                              on:click=reset_game
-                                          >
-                                              {reset_icon}
-                                          </button>
+                                        <div class=styles::btn_wrapper>
+                                            <button
+                                                class=styles::reset_btn
+                                                on:click=reset_game
+                                                disabled=send_reset
+                                            >
+                                                {reset_icon}
+                                            </button>
+
+                                            <Show 
+                                                when=move || send_reset.get() 
+                                                fallback=|| ()
+                                            >
+                                                <span class=styles::reset_hint>
+                                                    {move || texts().8}
+                                                </span>
+                                            </Show>
+                                        </div>
                                           <hr class=styles::divider />
                                           <p class=styles::reveal_text> {move || texts().5} </p>
 
