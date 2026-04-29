@@ -11,12 +11,12 @@ pub fn Home() -> impl IntoView {
     let config = use_context::<ReadSignal<Config>>().expect("reader");
 
     let t = move || match config.get().lang {
-        Language::Chinese => ("ACG 高手", "🫵 你是否是动漫膏手 🫵", "开始", "动漫人物"),
-        Language::English => ("ACGMaster", "🫵 Let's see if you are an anime master 🫵", "START", "Anime Character"),
+        Language::Chinese => ("ACG 高手", "🫵 来看看你是否是动漫膏手 🫵", "单人模式", "对战模式"),
+        Language::English => ("ACGMaster", "🫵 Let's see if you are an anime master 🫵", "Single", "Battle"),
     };
     let intro_text = move || match config.get().lang {
         Language::Chinese => (
-            "说明：在特定次数内猜出指定内容（比如:动漫名称, 动漫人物)为获胜条件，对于某次猜测给出的信息，",
+            "说明：在特定次数内猜出指定内容（比如:动漫名称)为获胜条件，对于某次猜测给出的信息，",
             " 代表该项与目标答案完全匹配；而",
             " 则说明该项与答案接近, 并且",
             " 的接近程度更高。",
@@ -38,7 +38,7 @@ pub fn Home() -> impl IntoView {
 
             <div class=styles::button_row>
                 <JmpBtn text={move || t().2.to_string()} url="/single".to_string()/>
-                <JmpBtn text={move || t().2.to_string()} url="/multi".to_string()/>
+                <JmpBtn text={move || t().3.to_string()} url="/multi".to_string()/>
             </div>
 
             <div class=styles::rules_container>

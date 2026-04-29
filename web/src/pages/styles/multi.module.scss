@@ -30,7 +30,9 @@ main {
   --chat-input-bg: rgba(255, 255, 255, 0.8);
   --chat-input-border: #cccccc;
   --chat-input-text: #1a1a1a;
-
+  --chat-send-bg: #1a1a1a;
+  --chat-send-text: #ffffff;
+  --chat-send-hover: #333333;
 }
 
 :global([data-theme="dark"]) {
@@ -44,6 +46,10 @@ main {
   --match-btn-text: #1a1a1a;
   --match-btn-hover: #ffffff;
   --disabled-color: #444444;
+
+  --chat-send-bg: #f0f0f0;
+  --chat-send-text: #1a1a1a;
+  --chat-send-hover: #ffffff;
 }
 
 .lobby_section {

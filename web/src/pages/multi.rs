@@ -104,7 +104,6 @@ pub fn Multi() -> impl IntoView {
         }
     });
 
-    // TODO:
     let send_text = move |_| {
         let current_msg = text.get_untracked();
         if current_msg.is_empty() {
@@ -219,6 +218,8 @@ pub fn Multi() -> impl IntoView {
             "发送",
             "输入你的答案",
             "等待对方中......",
+            "输入消息",
+            "发送",
         ),
         Language::English => (
             "Input your name",
@@ -230,6 +231,8 @@ pub fn Multi() -> impl IntoView {
             "Send",
             "Input your answer",
             "Waiting for the opponent...",
+            "Input message",
+            "Send",
         ),
     };
 
@@ -559,7 +562,7 @@ pub fn Multi() -> impl IntoView {
                         <div class=styles::chat_input_row>
                             <input
                                 class=styles::chat_input
-                                placeholder="message..."
+                                placeholder=texts().9
                                 bind:value=(text, set_text)
                                 disabled=move || game_state.get() == GameState::Matching
                             />
@@ -568,7 +571,7 @@ pub fn Multi() -> impl IntoView {
                                 on:click=send_text
                                 disabled=move || game_state.get() == GameState::Matching
                             >
-                                "Send"
+                                {texts().10}
                             </button>
                         </div>
                     </div>
