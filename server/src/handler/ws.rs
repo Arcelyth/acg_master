@@ -3,6 +3,7 @@ use actix_ws::{Message, Session};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use crate::handler::bangumi::*;
@@ -77,6 +78,13 @@ pub async fn ws(
 
     actix_web::rt::spawn(async move {
         let mut current_user_id: Option<String> = None;
+
+        // token bucket
+        let mut last_tick = Instant::now();
+        let mut tokens: f64 = 10.0;
+        let max_tokens: f64 = 10.0;
+        let refill_rate: f64 = 2.0;
+
         while let Some(Ok(msg)) = msg_stream.recv().await {
             match msg {
                 Message::Ping(bytes) => {
@@ -86,6 +94,20 @@ pub async fn ws(
                 }
 
                 Message::Text(msg) => {
+                    // rate limiting
+                    let now = Instant::now();
+                    let elapsed = now.duration_since(last_tick).as_secs_f64();
+                    last_tick = now;
+                    tokens = (tokens + elapsed * refill_rate).min(max_tokens);
+                    if tokens < 1.0 {
+                        println!(
+                            "Rate limit exceeded for user: {:?}. Closing connection.",
+                            current_user_id
+                        );
+                        break;
+                    }
+                    tokens -= 1.0;
+
                     let Ok(client_msg) = serde_json::from_str::<ClientMsg>(&msg) else {
                         continue;
                     };

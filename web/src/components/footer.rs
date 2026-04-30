@@ -10,7 +10,7 @@ pub fn Footer() -> impl IntoView {
         <div 
             class=styles::footer
         >
-            "© 2026 Arcelyth. All rights reserved."
+            "© 2026 Arcelyth"
         </div>
     }
 }

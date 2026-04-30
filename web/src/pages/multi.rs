@@ -153,6 +153,7 @@ pub fn Multi() -> impl IntoView {
             "发送",
             "对方已离线",
             "已在列表中",
+            "答案",
         ),
         Language::English => (
             "Input your name",
@@ -168,6 +169,7 @@ pub fn Multi() -> impl IntoView {
             "Send",
             "The other party is offline",
             "Already in the list",
+            "ANSWER",
         ),
     };
 
@@ -546,7 +548,7 @@ pub fn Multi() -> impl IntoView {
                                             </Show>
                                         </div>
                                           <hr class=styles::divider />
-                                          <p class=styles::reveal_text> {move || texts().5} </p>
+                                          <p class=styles::reveal_text> {move || texts().13} </p>
 
                                           <Suspense fallback=|| view! { "..." }>
                                               {move || Suspend::new(async move {
