@@ -19,6 +19,7 @@ pub enum GameState {
     Matching,
     Loading,
     Playing,
+    Exhausted,
     Win,
     Lose,
 }
@@ -70,7 +71,7 @@ pub fn Multi() -> impl IntoView {
 
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
 
-    let max_guess = 20;
+    let max_guess = 5;
 
     // disconnect
     on_cleanup(move || {
@@ -154,6 +155,7 @@ pub fn Multi() -> impl IntoView {
             "对方已离线",
             "已在列表中",
             "答案",
+            "次数用尽",
         ),
         Language::English => (
             "Input your name",
@@ -170,6 +172,7 @@ pub fn Multi() -> impl IntoView {
             "The other party is offline",
             "Already in the list",
             "ANSWER",
+            "Run out of guess times",
         ),
     };
 
@@ -195,10 +198,12 @@ pub fn Multi() -> impl IntoView {
                             });
                         });
                     }
-                    ServerMsg::GuessResp(WsGuessResponse { guess, comparison }) => {
+                    ServerMsg::GuessResp(WsGuessResponse { guess, comparison }, gt) => {
                         set_cards.update(|c| c.push((guess, comparison)));
-                        let ans_len = cards.get_untracked().len();
-                        set_guess_time.set(ans_len);
+                        set_guess_time.set(gt);
+                        if gt >= max_guess {
+                            set_game_state.set(GameState::Exhausted);
+                        }
                     }
                     ServerMsg::OGuessResp(hide) => {
                         if hide_cards.get_untracked().is_empty() {
@@ -511,6 +516,12 @@ pub fn Multi() -> impl IntoView {
                     </div>
 
                   </div>
+
+                <Show when=move || game_state.get() == GameState::Exhausted>
+                    <span class=styles::exhausted>
+                        {move || texts().14}
+                    </span>
+                </Show>
 
                   // the final answer
                    <div class=styles::answer_reveal_section>

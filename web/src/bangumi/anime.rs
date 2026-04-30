@@ -142,13 +142,13 @@ pub async fn anime_start_game(config: Config) -> bool {
 }
 
 pub async fn compare_anime(guess: &BangumiSubject) -> GuessResponse {
-    let client = Client::builder().build().unwrap();
+    let client = Client::new();
 
     let url = if cfg!(debug_assertions) {
         format!("http://localhost:8060/api/bangumi/anime/verify_guess")
     } else {
         let origin = window().unwrap().location().origin().unwrap();
-        format!("{}/api/bangumi/anime/start_game", origin)
+        format!("{}/api/bangumi/anime/verify_guess", origin)
     };
 
     let res = client

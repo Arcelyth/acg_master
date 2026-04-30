@@ -3,7 +3,7 @@ use actix_ws::{Message, Session};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use uuid::Uuid;
 
 use crate::handler::bangumi::*;
@@ -44,7 +44,7 @@ pub struct WsGuessResponse {
 pub enum ServerMsg {
     JoinSucc(String, String),
     Response(String),
-    GuessResp(WsGuessResponse),
+    GuessResp(WsGuessResponse, usize),
     OGuessResp(BangumiSubjectHide), // another guy's resp
     Over(bool, (BangumiSubject, CompareResult)),
     Reset,
@@ -58,6 +58,8 @@ pub struct Room {
     pub p2: Player,
     pub answer: BangumiSubject,
     pub reset: (bool, bool),
+    pub max_guess: usize,
+    pub guess_time: (usize, usize),
 }
 
 #[derive(Clone)]
@@ -73,7 +75,7 @@ pub async fn ws(
     data: web::Data<MultiState>,
 ) -> actix_web::Result<impl Responder> {
     let (response, mut session, mut msg_stream) = actix_ws::handle(&req, body)?;
-
+    const MAX_GUESS: usize = 5;
     let state = data.get_ref().clone();
 
     actix_web::rt::spawn(async move {
@@ -140,6 +142,8 @@ pub async fn ws(
                                                 p2: player.clone(),
                                                 answer: answer.clone(),
                                                 reset: (false, false),
+                                                max_guess: MAX_GUESS,
+                                                guess_time: (0, 0),
                                             },
                                         );
                                     }
@@ -208,91 +212,130 @@ pub async fn ws(
                             }
                         }
                         ClientMsg::Guess(guess) => {
-                            if let Some(uid) = &current_user_id {
-                                let rid = state.user_room.lock().unwrap().get(uid).cloned();
-                                if let Some(rid) = rid {
-                                    let (
-                                        is_correct,
-                                        comparison,
-                                        answer,
-                                        p1_id,
-                                        p1_sess,
-                                        p2_sess,
-                                        right_comp,
-                                        comp_hide,
-                                    ) = {
-                                        let rooms = state.rooms.lock().unwrap();
-                                        if let Some(room) = rooms.get(&rid) {
-                                            let is_correct = is_guess_right(&guess, &room.answer);
-                                            let comparison = compare_anime(&guess, &room.answer);
-                                            let right_comp =
-                                                compare_anime(&room.answer, &room.answer);
-                                            let comp_hide = get_hide_subject(&room.answer, &guess);
-                                            (
-                                                is_correct,
-                                                comparison,
-                                                room.answer.clone(),
-                                                room.p1.id.clone(),
-                                                room.p1.session.clone(),
-                                                room.p2.session.clone(),
-                                                right_comp,
-                                                comp_hide,
-                                            )
-                                        } else {
-                                            continue;
-                                        }
-                                    };
+                            let uid = match &current_user_id {
+                                Some(id) => id.clone(),
+                                None => continue,
+                            };
+                            let rid = {
+                                let map = state.user_room.lock().unwrap();
+                                map.get(&uid).cloned()
+                            };
+                            let Some(rid) = rid else {
+                                continue;
+                            };
+                            let (
+                                is_correct,
+                                comparison,
+                                answer,
+                                p1_id,
+                                p1_sess,
+                                p2_sess,
+                                right_comp,
+                                comp_hide,
+                                is_draw,
+                                cur_gt,
+                            ) = {
+                                let mut rooms = state.rooms.lock().unwrap();
+                                let Some(room) = rooms.get_mut(&rid) else {
+                                    continue;
+                                };
 
-                                    let cur_sess = if p1_id == *uid { &p1_sess } else { &p2_sess };
-                                    let target_sess =
-                                        if p1_id == *uid { &p2_sess } else { &p1_sess };
+                                let is_p1 = room.p1.id == uid;
 
-                                    let resp = WsGuessResponse {
-                                        guess,
-                                        comparison: comparison.clone(),
-                                    };
-                                    let _ = cur_sess
-                                        .clone()
-                                        .text(
-                                            serde_json::to_string(&ServerMsg::GuessResp(resp))
-                                                .unwrap(),
-                                        )
-                                        .await;
-                                    let _ = target_sess
-                                        .clone()
-                                        .text(
-                                            serde_json::to_string(&ServerMsg::OGuessResp(
-                                                comp_hide,
-                                            ))
-                                            .unwrap(),
-                                        )
-                                        .await;
-
-                                    if is_correct {
-                                        let _ = cur_sess
-                                            .clone()
-                                            .text(
-                                                serde_json::to_string(&ServerMsg::Over(
-                                                    true,
-                                                    (answer.clone(), right_comp.clone()),
-                                                ))
-                                                .unwrap(),
-                                            )
-                                            .await;
-                                        let _ = target_sess
-                                            .clone()
-                                            .text(
-                                                serde_json::to_string(&ServerMsg::Over(
-                                                    false,
-                                                    (answer.clone(), right_comp),
-                                                ))
-                                                .unwrap(),
-                                            )
-                                            .await;
+                                let cur_gt = if is_p1 {
+                                    if room.guess_time.0 >= room.max_guess {
+                                        continue;
                                     }
-                                }
+                                    room.guess_time.0 += 1;
+                                    room.guess_time.0
+                                } else {
+                                    if room.guess_time.1 >= room.max_guess {
+                                        continue;
+                                    }
+                                    room.guess_time.1 += 1;
+                                    room.guess_time.1
+                                };
+
+                                let is_correct = is_guess_right(&guess, &room.answer);
+                                let comparison = compare_anime(&guess, &room.answer);
+                                let right_comp = compare_anime(&room.answer, &room.answer);
+                                let comp_hide = get_hide_subject(&room.answer, &guess);
+
+                                let is_draw = !is_correct
+                                    && room.guess_time.0 >= room.max_guess
+                                    && room.guess_time.1 >= room.max_guess;
+
+                                (
+                                    is_correct,
+                                    comparison,
+                                    room.answer.clone(),
+                                    room.p1.id.clone(),
+                                    room.p1.session.clone(),
+                                    room.p2.session.clone(),
+                                    right_comp,
+                                    comp_hide,
+                                    is_draw,
+                                    cur_gt,
+                                )
+                            };
+
+                            let is_p1 = p1_id == uid;
+                            let cur_sess = if is_p1 { &p1_sess } else { &p2_sess };
+                            let target_sess = if is_p1 { &p2_sess } else { &p1_sess };
+
+                            let resp = WsGuessResponse {
+                                guess,
+                                comparison: comparison.clone(),
+                            };
+                            let _ = cur_sess
+                                .clone()
+                                .text(
+                                    serde_json::to_string(&ServerMsg::GuessResp(resp, cur_gt))
+                                        .unwrap(),
+                                )
+                                .await;
+
+                            let _ = target_sess
+                                .clone()
+                                .text(
+                                    serde_json::to_string(&ServerMsg::OGuessResp(comp_hide))
+                                        .unwrap(),
+                                )
+                                .await;
+
+                            if is_correct {
+                                let _ = cur_sess
+                                    .clone()
+                                    .text(
+                                        serde_json::to_string(&ServerMsg::Over(
+                                            true,
+                                            (answer.clone(), right_comp.clone()),
+                                        ))
+                                        .unwrap(),
+                                    )
+                                    .await;
+                                let _ = target_sess
+                                    .clone()
+                                    .text(
+                                        serde_json::to_string(&ServerMsg::Over(
+                                            false,
+                                            (answer.clone(), right_comp),
+                                        ))
+                                        .unwrap(),
+                                    )
+                                    .await;
+                            } else if is_draw {
+                                let draw_msg = serde_json::to_string(&ServerMsg::Over(
+                                    false,
+                                    (answer.clone(), right_comp),
+                                ))
+                                .unwrap();
+
+                                let _ = p1_sess.clone().text(draw_msg.clone()).await;
+                                let _ = p2_sess.clone().text(draw_msg).await;
                             }
                         }
+
                         ClientMsg::Reset => {
                             let uid = match &current_user_id {
                                 Some(uid) => uid.clone(),
@@ -342,6 +385,7 @@ pub async fn ws(
                                         if let Some(room) = rooms.get_mut(&rid) {
                                             room.answer = answer.clone();
                                             room.reset = (false, false);
+                                            room.guess_time = (0, 0);
                                         } else {
                                             continue;
                                         }

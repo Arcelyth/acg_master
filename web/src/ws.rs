@@ -1,5 +1,5 @@
-use gloo_net::websocket::{futures::WebSocket, Message};
 use futures::{SinkExt, StreamExt};
+use gloo_net::websocket::{Message, futures::WebSocket};
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 use web_sys::window;
@@ -25,9 +25,9 @@ pub struct WsGuessResponse {
 pub enum ServerMsg {
     JoinSucc(String, String),
     Response(String),
-    GuessResp(WsGuessResponse),
+    GuessResp(WsGuessResponse, usize),
     OGuessResp(BangumiSubjectHide), // another guy's resp
-    Over(bool, (BangumiSubject, CompareResult)), 
+    Over(bool, (BangumiSubject, CompareResult)),
     Reset,
     ResetOk,
     Leave(BangumiSubject, CompareResult),
@@ -36,13 +36,16 @@ pub enum ServerMsg {
 pub fn connect_ws(
     on_message: impl Fn(String) + 'static + Clone,
 ) -> futures::channel::mpsc::UnboundedSender<Message> {
-
     let url = if cfg!(debug_assertions) {
         format!("ws://localhost:8060/api/bangumi/anime/ws")
     } else {
-        let origin = window().unwrap().location().origin().unwrap();
-        let ws_url = origin.replace("http", "ws");
-        format!("{}/api/bangumi/anime/ws", ws_url)
+        let loc = window().unwrap().location();
+        let protocol = loc.protocol().unwrap();
+        let host = loc.host().unwrap();
+
+        let ws_protocol = if protocol == "https:" { "wss" } else { "ws" };
+
+        format!("{}://{}/api/bangumi/anime/ws", ws_protocol, host)
     };
 
     let ws = WebSocket::open(&url).unwrap();
