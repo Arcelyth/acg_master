@@ -71,7 +71,7 @@ pub fn Multi() -> impl IntoView {
 
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
 
-    let max_guess = 5;
+    let max_guess = 20;
 
     // disconnect
     on_cleanup(move || {
@@ -228,6 +228,7 @@ pub fn Multi() -> impl IntoView {
                         set_dup.set(false);
                         set_game_state.set(GameState::Playing);
 
+                        set_send_reset.set(false);
                         set_is_timer_running.set(false);
                         set_elapsed_seconds.set(0);
 
@@ -635,12 +636,16 @@ where
     T: Into<Signal<u64>> + 'static,
 {
     let interval_millis = interval_millis.into();
-    Effect::new(move |prev_handle: Option<IntervalHandle>| {
-        if let Some(prev_handle) = prev_handle {
-            prev_handle.clear();
-        };
 
-        set_interval_with_handle(f.clone(), Duration::from_millis(interval_millis.get()))
-            .expect("could not create interval")
+    Effect::new(move |_| {
+        let handle = set_interval_with_handle(
+            f.clone(),
+            Duration::from_millis(interval_millis.get()),
+        )
+        .expect("could not create interval");
+
+        on_cleanup(move || {
+            handle.clear();
+        });
     });
 }

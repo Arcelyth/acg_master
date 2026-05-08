@@ -75,7 +75,7 @@ pub async fn ws(
     data: web::Data<MultiState>,
 ) -> actix_web::Result<impl Responder> {
     let (response, mut session, mut msg_stream) = actix_ws::handle(&req, body)?;
-    const MAX_GUESS: usize = 5;
+    const MAX_GUESS: usize = 20;
     let state = data.get_ref().clone();
 
     actix_web::rt::spawn(async move {
