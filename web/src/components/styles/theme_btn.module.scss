@@ -2,7 +2,7 @@
   width: 2.8rem;
   height: 2.8rem;
   border-radius: 50%;
-  border: 1px solid rgba(230, 230, 230, 1); 
+  border: 1px solid rgba(230, 230, 230, 1);
   background: white;
   cursor: pointer;
 
@@ -11,6 +11,10 @@
   justify-content: center;
 
   transition: background 0.3s ease;
+
+  flex-shrink: 0;
+  min-width: 2.8rem;
+  aspect-ratio: 1 / 1;
 
   .icon {
     position: relative;
@@ -63,9 +67,8 @@
     opacity: 1;
     transform: rotate(0deg) scale(1);
   }
- 
+
   &:hover {
     background: #666;
   }
 }
-

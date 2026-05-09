@@ -737,3 +737,165 @@ main {
     transform: translateY(0);
   }
 }
+
+/* mobile */
+@media screen and (max-width: 768px) {
+  main {
+    width: 95%;
+    min-height: 100vh;
+  }
+
+  .top_section {
+    width: 100%;
+    margin-left: 0;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .lobby_section {
+    padding: 1.5rem;
+    margin: 2rem auto;
+    width: 90%;
+    box-sizing: border-box;
+  }
+
+  .player_panel {
+    left: 50%;
+    top: 1rem;
+    transform: translateX(-50%);
+    flex-direction: row;
+    width: max-content;
+    max-width: 90%;
+    padding: 0.8rem 1.2rem;
+    gap: 1.5rem;
+  }
+
+  .chat_panel {
+    right: 50%;
+    transform: translateX(50%);
+    bottom: 1rem;
+    width: calc(100% - 2rem);
+    height: 30vh;
+  }
+
+  .interact_section {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 1.2rem;
+    width: 100%;
+  }
+
+  .search_wrapper,
+  .input_container,
+  .dropdown_list {
+    width: 100%;
+  }
+
+  .input_section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    width: 100%;
+  }
+
+  .input_section > span {
+    width: 100%;
+    text-align: left;
+  }
+
+  .input_section input {
+    width: 100%;
+  }
+
+  .button_section {
+    width: 100%;
+    height: auto;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .button_section button:not(.reset_btn) {
+    width: auto;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .reset_btn {
+    margin: 0;
+  }
+
+  .guess_number,
+  .timer {
+    width: 100%;
+    text-align: center;
+    line-height: 1.5rem;
+  }
+
+  .display_section {
+    flex-direction: column;
+    margin-top: 1rem;
+    width: 100%;
+    gap: 1.5rem;
+  }
+
+  .your_answers,
+  .hide_answers {
+    width: 100%;
+  }
+
+  .answer_reveal_section {
+    margin-top: 2rem;
+    padding-bottom: 2rem;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  main {
+    width: 100%;
+    padding: 0 0.5rem;
+    box-sizing: border-box;
+  }
+
+  .player_panel {
+    width: 95%;
+    justify-content: center;
+    padding: 0.6rem 1rem;
+    gap: 1rem;
+  }
+
+  .player_me,
+  .player_other {
+    font-size: 0.95rem;
+  }
+
+  .chat_panel {
+    height: 35vh;
+  }
+
+  .input_section {
+    gap: 0.625rem;
+  }
+
+  .button_section {
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .reset_btn {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .status_win,
+  .status_lose {
+    font-size: 1.5rem;
+  }
+
+  .timer_text {
+    font-size: 0.95rem;
+  }
+}
