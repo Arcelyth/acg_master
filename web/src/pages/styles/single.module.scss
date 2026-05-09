@@ -126,7 +126,7 @@ main {
 :root {
   --send-color: #ffffff;
   --send-font-color: #1a1a1a;
-  --send-hover: #DBDBDB;
+  --send-hover: #dbdbdb;
 }
 
 :global([data-theme="dark"]) {
@@ -232,7 +232,7 @@ main {
 
 :root {
   --btn-back-color: #333333;
-  --btn-reset-bg: #90DEA6;
+  --btn-reset-bg: #90dea6;
   --btn-reset-hover: #218838;
   --icon-white: #ffffff;
 }
@@ -247,7 +247,7 @@ main {
 .reset_btn {
   width: 2.8rem;
   height: 2.8rem;
-  margin: 0 auto; 
+  margin: 0 auto;
   background-color: var(--btn-reset-bg);
   border: none;
   border-radius: 50%;
@@ -315,5 +315,123 @@ main {
 }
 .timer_text {
   font-size: 1rem;
+}
 
+/* moblie */
+@media screen and (max-width: 768px) {
+  main {
+    width: 90%;
+    min-height: 100vh;
+  }
+
+  .top_section {
+    width: 100%;
+    margin-left: 0;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+  }
+
+  .interact_section {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.875rem;
+    width: 100%;
+  }
+
+  .search_wrapper {
+    width: 100%;
+  }
+
+  .input_section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    width: 100%;
+  }
+
+  .input_section > span {
+    width: 100%;
+    text-align: left;
+  }
+
+  .input_container {
+    width: 100%;
+  }
+
+  .input_section input {
+    width: 100%;
+  }
+
+  .dropdown_list {
+    width: 100%;
+  }
+
+  .button_section {
+    width: 100%;
+    height: auto;
+    justify-content: between;
+    gap: 0.625rem;
+  }
+
+  .button_section button:not(.reset_btn) {
+    width: auto;
+  }
+
+  .reset_btn {
+    margin: 0;
+  }
+
+  .guess_number,
+  .timer {
+    width: 100%;
+    text-align: center;
+    line-height: 1.5rem;
+  }
+
+  .display_section {
+    margin-top: 1rem;
+  }
+
+  .answer_reveal_section {
+    margin-top: 2rem;
+    padding-bottom: 2rem;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  main {
+    width: 95%;
+  }
+
+  .input_section {
+    gap: 0.625rem;
+  }
+
+  .button_section {
+    width: 100%;
+    height: auto;
+    justify-content: space-between;
+    gap: 0.625rem;
+  }
+
+  .button_section button:not(.reset_btn) {
+    width: auto;
+  }
+
+  .reset_btn {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .status_win,
+  .status_lose {
+    font-size: 1.5rem;
+  }
+
+  .timer_text {
+    font-size: 0.95rem;
+  }
 }
