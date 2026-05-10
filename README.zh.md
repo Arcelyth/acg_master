@@ -5,6 +5,9 @@
   <span>English</span>
 </p>
 
+## 介绍
+一个使用 leptos 和 actix 搭建的关于ACG的猜谜游戏网站, 
+
 ## 安装
 
 生成会话签名密钥：

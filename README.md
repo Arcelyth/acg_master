@@ -5,6 +5,9 @@
   <a href="./README.zh.md">中文</a>
 </p>
 
+## Introduction
+A guessing game website about ACG built with leptos and actix
+
 ## Installation
 
 Generate a session signing key:
