@@ -101,6 +101,7 @@ pub fn Single() -> impl IntoView {
             "答案",
             "输入动漫名称",
             "已在列表中",
+            ("封面", "标题与集数", "评分", "放送日期", "标签"),
         ),
         Language::English => (
             "Back",
@@ -111,6 +112,7 @@ pub fn Single() -> impl IntoView {
             "ANSWER",
             "Input anime's name",
             "Already in the list",
+            ("Cover", "Title & Eps", "Rating", "Air Date", "Tags"),
         ),
     };
 
@@ -245,8 +247,8 @@ pub fn Single() -> impl IntoView {
                     <div class=styles::search_wrapper>
                        <div class=styles::input_section>
                             <span> {move || texts().1}: </span>
-                            
-                            <div class=styles::input_container> 
+
+                            <div class=styles::input_container>
                                 <input
                                     placeholder={move || texts().6}
                                     type="text"
@@ -330,6 +332,19 @@ pub fn Single() -> impl IntoView {
 
                 // all the answers
                 <div class=styles::display_section>
+                // the table header
+                <div class=styles::table_header>
+                    <div class=styles::header_image_placeholder>
+                        {move || texts().8.0}
+                    </div>
+
+                    <div class=styles::header_content_grid>
+                        <div class=styles::col_header_text>{move || texts().8.1}</div>
+                        <div class=styles::center_text>{move || texts().8.2}</div>  
+                        <div class=styles::center_text>{move || texts().8.3}</div>
+                        <div class=styles::col_header_text>{move || texts().8.4}</div>
+                    </div>
+                </div>
                 <For
                     each=move || cards.get()
                     key=|(item, _)| item.id.clone()
@@ -404,11 +419,9 @@ where
     let interval_millis = interval_millis.into();
 
     Effect::new(move |_| {
-        let handle = set_interval_with_handle(
-            f.clone(),
-            Duration::from_millis(interval_millis.get()),
-        )
-        .expect("could not create interval");
+        let handle =
+            set_interval_with_handle(f.clone(), Duration::from_millis(interval_millis.get()))
+                .expect("could not create interval");
 
         on_cleanup(move || {
             handle.clear();
