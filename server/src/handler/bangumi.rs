@@ -132,7 +132,10 @@ pub async fn fetch_random_anime(start_year: usize, end_year: usize) -> Option<Ba
 
         let count_res = client
             .post(format!("{}?limit=1&offset=0", url))
-            .header("User-Agent", "arcelyth/acg_master (https://github.com/arcelyth/acg_master)")
+            .header(
+                "User-Agent",
+                "arcelyth/acg_master (https://github.com/arcelyth/acg_master)",
+            )
             .json(&req_body)
             .send()
             .await
@@ -151,7 +154,10 @@ pub async fn fetch_random_anime(start_year: usize, end_year: usize) -> Option<Ba
         let random_offset = rng.random_range(0..total);
         let res = client
             .post(format!("{}?limit=1&offset={}", url, random_offset))
-            .header("User-Agent", "arcelyth/acg_master (https://github.com/arcelyth/acg_master)")
+            .header(
+                "User-Agent",
+                "arcelyth/acg_master (https://github.com/arcelyth/acg_master)",
+            )
             .json(&req_body)
             .send()
             .await
@@ -203,11 +209,20 @@ pub fn compare_anime(guess: &BangumiSubject, answer: &BangumiSubject) -> Compare
         let g_year = guess.date.get(0..4).and_then(|s| s.parse::<i32>().ok());
         let a_year = answer.date.get(0..4).and_then(|s| s.parse::<i32>().ok());
         if let (Some(gy), Some(ay)) = (g_year, a_year) {
-            let diff = (gy - ay).abs();
-            if diff == 0 {
-                almost.insert("date".to_string());
-            } else if diff <= 3 {
-                close.insert("date".to_string());
+            let diff = gy - ay;
+            let diff_abs = diff.abs();
+            if diff_abs == 0 {
+                if guess.date > answer.date {
+                    almost.insert("date_down".to_string());
+                } else {
+                    almost.insert("date_up".to_string());
+                }
+            } else if diff_abs <= 3 {
+                if diff > 0 {
+                    close.insert("date_down".to_string());
+                } else {
+                    close.insert("date_up".to_string());
+                }
             } else {
                 wrong.insert("date".to_string());
             }
@@ -218,27 +233,45 @@ pub fn compare_anime(guess: &BangumiSubject, answer: &BangumiSubject) -> Compare
         wrong.insert("date".to_string());
     }
 
-    let ep_diff = (guess.total_episodes as i32 - answer.total_episodes as i32).abs();
+    let ep_diff = guess.total_episodes as i32 - answer.total_episodes as i32;
+    let ep_diff_abs = ep_diff.abs();
     if ep_diff == 0 {
         correct.insert("total_episodes".to_string());
-    } else if ep_diff <= 2 {
-        almost.insert("total_episodes".to_string());
+    } else if ep_diff_abs <= 2 {
+        if ep_diff > 0 {
+            almost.insert("total_episodes_down".to_string());
+        } else {
+            almost.insert("total_episodes_up".to_string());
+        }
     } else if ep_diff <= 10 {
-        close.insert("total_episodes".to_string());
+        if ep_diff > 0 {
+            close.insert("total_episodes_down".to_string());
+        } else {
+            close.insert("total_episodes_up".to_string());
+        }
     } else {
         wrong.insert("total_episodes".to_string());
     }
 
+    let rd = guess.rating.score - answer.rating.score;
+    let rd_abs = rd.abs();
     if answer.rating.score == guess.rating.score {
         correct.insert("rating".to_string());
-    } else if (answer.rating.score - guess.rating.score).abs() <= 2. {
-        close.insert("rating".to_string());
-    } else if (answer.rating.score - guess.rating.score).abs() <= 1. {
-        almost.insert("rating".to_string());
+    } else if rd_abs <= 2. {
+        if rd > 0. {
+            close.insert("rating_down".to_string());
+        } else {
+            close.insert("rating_up".to_string());
+        }
+    } else if rd_abs <= 1. {
+        if rd > 0. {
+            almost.insert("rating_down".to_string());
+        } else {
+            almost.insert("rating_up".to_string());
+        }
     } else {
         wrong.insert("rating".to_string());
     };
-
 
     CompareResult {
         correct,
@@ -261,7 +294,10 @@ pub struct StartGameRequest {
     end_year: usize,
 }
 
-pub async fn start_new_game(session: Session, config: web::Json<StartGameRequest>) -> impl Responder {
+pub async fn start_new_game(
+    session: Session,
+    config: web::Json<StartGameRequest>,
+) -> impl Responder {
     if let Some(subject) = fetch_random_anime(config.start_year, config.end_year).await {
         if session.insert("current_answer", &subject).is_err() {
             return HttpResponse::InternalServerError()
@@ -286,7 +322,7 @@ pub async fn start_new_game(session: Session, config: web::Json<StartGameRequest
 pub async fn verify_guess(session: Session, guess: web::Json<BangumiSubject>) -> impl Responder {
     let (Ok(Some(answer)), Ok(Some(config))) = (
         session.get::<BangumiSubject>("current_answer"),
-        session.get::<Config>("config")
+        session.get::<Config>("config"),
     ) else {
         return HttpResponse::BadRequest().json(serde_json::json!({
             "error": "No active game found. Please start a new game."
@@ -299,7 +335,7 @@ pub async fn verify_guess(session: Session, guess: web::Json<BangumiSubject>) ->
     let comparison = compare_anime(&guess, &answer);
     let right_comp = compare_anime(&answer, &answer);
     let new_guess_time = config.guess_time + 1;
-    
+
     let is_game_over = is_correct || new_guess_time >= config.max_guess;
 
     if is_game_over {
@@ -311,24 +347,30 @@ pub async fn verify_guess(session: Session, guess: web::Json<BangumiSubject>) ->
             ..config
         };
         if session.insert("config", &new_config).is_err() {
-            return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Session save error"}));
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Session save error"}));
         }
     }
 
     HttpResponse::Ok().json(GuessResponse {
         is_correct,
         comparison,
-        answer: if is_game_over { Some((answer, right_comp)) } else { None },
+        answer: if is_game_over {
+            Some((answer, right_comp))
+        } else {
+            None
+        },
     })
 }
-
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub enum Diff {
     Right,
     Wrong,
-    Close,
-    Almost,
+    CloseUp,
+    CloseDown,
+    AlmostUp,
+    AlmostDown,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -349,11 +391,20 @@ pub fn get_hide_subject(answer: &BangumiSubject, guess: &BangumiSubject) -> Bang
         let g_year = guess.date.get(0..4).and_then(|s| s.parse::<i32>().ok());
         let a_year = answer.date.get(0..4).and_then(|s| s.parse::<i32>().ok());
         if let (Some(gy), Some(ay)) = (g_year, a_year) {
-            let diff = (gy - ay).abs();
-            if diff == 0 {
-                Diff::Almost
-            } else if diff <= 3 {
-                Diff::Close
+            let diff = gy - ay;
+            let diff_abs = diff.abs();
+            if diff_abs == 0 {
+                if guess.date > answer.date {
+                    Diff::AlmostDown
+                } else {
+                    Diff::AlmostUp
+                }
+            } else if diff_abs <= 3 {
+                if diff > 0 {
+                    Diff::CloseDown
+                } else {
+                    Diff::CloseUp
+                }
             } else {
                 Diff::Wrong
             }
@@ -365,13 +416,22 @@ pub fn get_hide_subject(answer: &BangumiSubject, guess: &BangumiSubject) -> Bang
     };
 
     let calc_eps_diff = |g: usize, a: usize| {
-        let diff = (g as i32 - a as i32).abs();
+        let diff = g as i32 - a as i32;
+        let diff_abs = diff.abs();
         if diff == 0 {
             Diff::Right
-        } else if diff <= 2 {
-            Diff::Almost
-        } else if diff <= 10 {
-            Diff::Close
+        } else if diff_abs <= 2 {
+            if diff > 0 {
+                Diff::AlmostDown
+            } else {
+                Diff::AlmostUp
+            }
+        } else if diff_abs <= 10 {
+            if diff > 0 {
+                Diff::CloseUp
+            } else {
+                Diff::CloseDown
+            }
         } else {
             Diff::Wrong
         }

@@ -196,8 +196,10 @@ pub fn is_guess_right(guess: &BangumiSubject, answer: &BangumiSubject) -> bool {
 pub enum Diff {
     Right,
     Wrong,
-    Close,
-    Almost,
+    CloseUp,
+    CloseDown,
+    AlmostUp,
+    AlmostDown,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -219,11 +221,20 @@ pub fn get_hide_subject(answer: &BangumiSubject, guess: &BangumiSubject) -> Bang
         let g_year = guess.date.get(0..4).and_then(|s| s.parse::<i32>().ok());
         let a_year = answer.date.get(0..4).and_then(|s| s.parse::<i32>().ok());
         if let (Some(gy), Some(ay)) = (g_year, a_year) {
-            let diff = (gy - ay).abs();
+            let diff = gy - ay;
+            let diff_abs = diff.abs();
             if diff == 0 {
-                Diff::Almost
-            } else if diff <= 3 {
-                Diff::Close
+                if guess.date > answer.date {
+                    Diff::AlmostDown
+                } else {
+                    Diff::AlmostUp
+                }
+            } else if diff_abs <= 3 {
+                if diff > 0 {
+                    Diff::CloseDown
+                } else {
+                    Diff::CloseUp
+                }
             } else {
                 Diff::Wrong
             }
@@ -235,24 +246,43 @@ pub fn get_hide_subject(answer: &BangumiSubject, guess: &BangumiSubject) -> Bang
     };
 
     let calc_eps_diff = |g: usize, a: usize| {
-        let diff = (g as i32 - a as i32).abs();
+        let diff = g as i32 - a as i32;
+        let diff_abs = diff.abs();
         if diff == 0 {
             Diff::Right
-        } else if diff <= 2 {
-            Diff::Almost
-        } else if diff <= 10 {
-            Diff::Close
+        } else if diff_abs <= 2 {
+            if diff > 0 {
+                Diff::AlmostDown
+            } else {
+                Diff::AlmostUp
+            }
+        } else if diff_abs <= 10 {
+            if diff > 0 {
+                Diff::CloseDown
+            } else {
+                Diff::CloseUp
+            }
         } else {
             Diff::Wrong
         }
     };
 
+    let rd = answer.rating.score - guess.rating.score;
+    let rd_abs = rd.abs();
     let rating_diff = if answer.rating.score == guess.rating.score {
         Diff::Right
-    } else if (answer.rating.score - guess.rating.score).abs() <= 2. {
-        Diff::Close
-    } else if (answer.rating.score - guess.rating.score).abs() <= 1. {
-        Diff::Almost
+    } else if rd_abs <= 2. {
+        if rd > 0. {
+            Diff::CloseDown
+        } else {
+            Diff::CloseUp
+        }
+    } else if rd_abs <= 1. {
+        if rd > 0. {
+            Diff::AlmostDown
+        } else {
+            Diff::AlmostUp
+        }
     } else {
         Diff::Wrong
     };

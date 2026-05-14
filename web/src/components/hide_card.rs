@@ -18,8 +18,8 @@ pub fn HideCard(hide: BangumiSubjectHide) -> impl IntoView {
     let get_diff_class = |diff: &Diff| {
         match diff {
             Diff::Right => styles::status_correct,
-            Diff::Close => styles::status_close,
-            Diff::Almost => styles::status_almost,
+            Diff::CloseUp | Diff::CloseDown => styles::status_close,
+            Diff::AlmostUp | Diff::AlmostDown => styles::status_almost,
             Diff::Wrong => styles::status_wrong,
         }
     };
