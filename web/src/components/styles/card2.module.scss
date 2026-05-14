@@ -86,7 +86,8 @@
   gap: 1.25rem;
   flex-grow: 1;
   min-width: 0;
-  align-items: start;
+  align-items: flex-start;
+  justify-items: center;
 }
 
 .col_names,

@@ -455,7 +455,7 @@ main {
 .header_image_placeholder {
   flex-shrink: 0;
   width: 7.8125rem;
-  text-align: flex-start;
+  text-align: center;
 }
 
 .header_content_grid {
@@ -469,8 +469,9 @@ main {
 
 .col_header_text {
   padding-left: 0.25rem;
+  text-align: center;
 }
 
 .center_text {
-  text-align: flex-start;
+  text-align: center;
 }
