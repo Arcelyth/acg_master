@@ -22,6 +22,11 @@ pub struct BangumiTags {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct Rating {
+    pub score: f32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct BangumiSubject {
     pub id: usize,
     #[serde(default, deserialize_with = "deserialize_null_to_empty")]
@@ -32,6 +37,7 @@ pub struct BangumiSubject {
     pub name_cn: String,
     pub images: SubjectImages,
     pub tags: Vec<BangumiTags>,
+    pub rating: Rating,
     pub eps: usize,
     pub total_episodes: usize,
     pub meta_tags: Vec<String>,
@@ -200,6 +206,7 @@ pub struct BangumiSubjectHide {
     pub name: bool,
     pub name_cn: bool,
     pub tags: Vec<bool>,
+    pub rating: Diff,
     pub eps: Diff,
     pub total_episodes: Diff,
     pub meta_tags: Vec<bool>,
@@ -240,6 +247,16 @@ pub fn get_hide_subject(answer: &BangumiSubject, guess: &BangumiSubject) -> Bang
         }
     };
 
+    let rating_diff = if answer.rating.score == guess.rating.score {
+        Diff::Right
+    } else if (answer.rating.score - guess.rating.score).abs() <= 2. {
+        Diff::Close
+    } else if (answer.rating.score - guess.rating.score).abs() <= 1. {
+        Diff::Almost
+    } else {
+        Diff::Wrong
+    };
+
     let answer_tags_set: HashSet<String> = answer.tags.iter().map(|t| t.name.clone()).collect();
     let tags_res = guess
         .tags
@@ -259,6 +276,7 @@ pub fn get_hide_subject(answer: &BangumiSubject, guess: &BangumiSubject) -> Bang
         name: guess.name == answer.name,
         name_cn: guess.name_cn == answer.name_cn,
         tags: tags_res,
+        rating: rating_diff,
         eps: calc_eps_diff(guess.eps, answer.eps),
         total_episodes: calc_eps_diff(guess.total_episodes, answer.total_episodes),
         meta_tags: meta_res,

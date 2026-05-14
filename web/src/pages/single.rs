@@ -11,6 +11,7 @@ import_crate_style!(styles, "./src/pages/styles/single.module.scss");
 use crate::bangumi::anime::*;
 use crate::components::back_btn::BackBtn;
 use crate::components::card::Card;
+use crate::components::card2::Card2;
 use crate::config::{Config, Language};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -334,9 +335,7 @@ pub fn Single() -> impl IntoView {
                     key=|(item, _)| item.id.clone()
                     children=move |(item, comp_res)| {
                         view! {
-                            <div>
-                                <Card info=item comparison=comp_res />
-                            </div>
+                                <Card2 info=item comparison=comp_res />
                             }
                         }
                 />
@@ -379,7 +378,7 @@ pub fn Single() -> impl IntoView {
                                         <Suspense fallback=|| view! { "..." }>
                                             {move || Suspend::new(async move {
                                                 match answer.get() {
-                                                    Some(a) => view! {<div> <Card info=a.0.clone() comparison=a.1/> </div>},
+                                                    Some(a) => view! {<div> <Card2 info=a.0.clone() comparison=a.1/> </div>},
                                                     None => view! { <div><span></span> </div> }
                                                 }
                                             })}

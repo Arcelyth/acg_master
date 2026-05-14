@@ -3,6 +3,7 @@ pub mod lang_list;
 pub mod header;
 pub mod jmp_btn;
 pub mod card;
+pub mod card2;
 pub mod footer;
 pub mod back_btn;
 pub mod hide_card;

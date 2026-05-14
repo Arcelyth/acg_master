@@ -21,6 +21,11 @@ pub struct SubjectImages {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct Rating {
+    pub score: f32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct BangumiSubject {
     pub id: usize,
     #[serde(default, deserialize_with = "deserialize_null_to_empty")]
@@ -32,6 +37,7 @@ pub struct BangumiSubject {
     pub images: SubjectImages,
     pub tags: Vec<BangumiTags>,
     pub eps: usize,
+    pub rating: Rating,
     pub total_episodes: usize,
     pub meta_tags: Vec<String>,
     #[serde(rename = "type", alias = "kind")]
@@ -222,6 +228,17 @@ pub fn compare_anime(guess: &BangumiSubject, answer: &BangumiSubject) -> Compare
     } else {
         wrong.insert("total_episodes".to_string());
     }
+
+    if answer.rating.score == guess.rating.score {
+        correct.insert("rating".to_string());
+    } else if (answer.rating.score - guess.rating.score).abs() <= 2. {
+        close.insert("rating".to_string());
+    } else if (answer.rating.score - guess.rating.score).abs() <= 1. {
+        almost.insert("rating".to_string());
+    } else {
+        wrong.insert("rating".to_string());
+    };
+
 
     CompareResult {
         correct,
