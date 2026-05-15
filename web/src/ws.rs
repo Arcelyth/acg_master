@@ -32,11 +32,18 @@ pub struct WsGuessResponse {
     pub comparison: CompareResult,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct PlayerData {
+    pub reset: bool,
+    pub guess_time: usize,
+    pub is_prepared: bool,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
     Start,
     CreateRoomOk,
-    JoinSucc(Vec<String>), // other players' names
+    JoinSucc(Vec<(String, PlayerData)>), // other players' name and data
     OJoinSucc(String), // other player's name
     Response(String),
     GuessResp(WsGuessResponse, usize),

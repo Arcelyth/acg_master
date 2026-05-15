@@ -202,19 +202,27 @@ pub fn Multi() -> impl IntoView {
 
             if let Ok(server_msg) = serde_json::from_str::<ServerMsg>(&msg) {
                 match server_msg {
-                    ServerMsg::JoinSucc(names) => {
+                    ServerMsg::JoinSucc(ps) => {
                         set_game_state.set(GameState::Waiting);
                         set_players.update(|p| {
                             p.insert(username.get(), PlayerEntry { is_prepared: false });
-                            for name in names {
-                                p.insert(name, PlayerEntry { is_prepared: false });
+                            for (name, data) in ps {
+                                p.insert(
+                                    name,
+                                    PlayerEntry {
+                                        is_prepared: data.is_prepared,
+                                    },
+                                );
                             }
                         });
                     }
                     ServerMsg::OJoinSucc(name) => {
                         set_game_state.set(GameState::Waiting);
+
                         set_players.update(|p| {
-                            p.insert(name, PlayerEntry { is_prepared: false });
+                            let mut new = p.clone();
+                            new.insert(name, PlayerEntry { is_prepared: false });
+                            *p = new;
                         });
                     }
 
@@ -227,12 +235,11 @@ pub fn Multi() -> impl IntoView {
                             p.insert(username.get(), PlayerEntry { is_prepared: false });
                         });
                     }
+
                     ServerMsg::Prepare(name) => {
                         set_players.update(|p| {
-                            if let Some(pe) = p.get(&name) {
-                                set_players.update(|p| {
-                                    p.insert(name, PlayerEntry { is_prepared: true });
-                                })
+                            if let Some(entry) = p.get_mut(&name) {
+                                entry.is_prepared = true;
                             }
                         });
                     }
@@ -296,10 +303,6 @@ pub fn Multi() -> impl IntoView {
                 }
             }
         });
-        let join_msg = ClientMsg::Join("".to_string(), username.get());
-        if let Ok(text) = serde_json::to_string(&join_msg) {
-            let _ = sender.unbounded_send(Message::Text(text));
-        }
 
         ws_sender.set_value(Some(sender));
     };
@@ -438,6 +441,16 @@ pub fn Multi() -> impl IntoView {
         }
     });
 
+    let prepare = move |_| {
+        if let Some(tx) = ws_sender.get_value() {
+            let msg = ClientMsg::Prepare;
+
+            if let Ok(text) = serde_json::to_string(&msg) {
+                let _ = tx.unbounded_send(Message::Text(text));
+            }
+        }
+    };
+
     let reset_icon = move || {
         view! {
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -541,15 +554,7 @@ pub fn Multi() -> impl IntoView {
                     </div>
                 </Show>
                 <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
-                      // show names
-                      <div class=styles::player_panel>
-                          <div class=styles::player_me>
-                              {move || username.get()}
-                          </div>
-                          <div class=styles::player_other>
-                              {move || p2_name.get()}
-                          </div>
-                      </div>
+
                   // interact section
                    <div class=styles::interact_section>
                       <div class=styles::search_wrapper>
@@ -647,6 +652,24 @@ pub fn Multi() -> impl IntoView {
                             <div class=styles::center_text>{move || texts().15.3}</div>
                             <div class=styles::col_header_text>{move || texts().15.4}</div>
                         </div>
+                    </div>
+
+                    <div class=styles::prepare_section>
+                        <button
+                            class=move || if players.get().get(&username.get()).map(|p| p.is_prepared).unwrap_or(false) {
+                                styles::prepare_btn_active
+                            } else {
+                                styles::prepare_btn
+                            }
+                            on:click=prepare>
+                            {move || {
+                                if players.get().get(&username.get()).map(|p| p.is_prepared).unwrap_or(false) {
+                                    "取消准备"
+                                } else {
+                                    "准备就绪"
+                                }
+                            }}
+                        </button>
                     </div>
 
                      <div class=styles::hide_answers>

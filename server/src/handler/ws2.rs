@@ -45,8 +45,8 @@ pub struct WsGuessResponse {
 pub enum ServerMsg {
     Start,
     CreateRoomOk,
-    OJoinSucc(String),     // other player's name
-    JoinSucc(Vec<String>), // other players' names
+    OJoinSucc(String),                   // other player's name
+    JoinSucc(Vec<(String, PlayerData)>), // other players' name and data
     Response(String),
     GuessResp(WsGuessResponse, usize),
     OGuessResp(BangumiSubjectHide), // another guy's resp
@@ -57,13 +57,13 @@ pub enum ServerMsg {
     Leave(BangumiSubject, CompareResult), // opponent leave
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RoomData {
     pub answer: BangumiSubject,
     pub max_guess: usize,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct PlayerData {
     pub reset: bool,
     pub guess_time: usize,
@@ -234,14 +234,19 @@ pub async fn ws(
 
                             let result = {
                                 let mut rooms = state.rooms.lock().unwrap();
+
                                 if let Some(room) = rooms.get_mut(&room_id) {
                                     if room.players.len() >= MAX_PLAYER
                                         || room.players.iter().any(|p| p.0.name == name)
                                     {
                                         None
                                     } else {
-                                        let existing_player_names: Vec<String> =
-                                            room.players.iter().map(|p| p.0.name.clone()).collect();
+                                        let old_players: Vec<(String, PlayerData)> = room
+                                            .players
+                                            .iter()
+                                            .map(|(p, d)| (p.name.clone(), d.clone()))
+                                            .collect();
+
                                         let new_player = Player {
                                             id: user_id.clone(),
                                             name: name.clone(),
@@ -263,26 +268,28 @@ pub async fn ws(
                                             .map(|p| p.0.session.clone())
                                             .collect();
 
-                                        Some((existing_player_names, other_sessions))
+                                        Some((old_players, other_sessions))
                                     }
                                 } else {
                                     None
                                 }
                             };
 
-                            if let Some((old_names, others)) = result {
+                            if let Some((old_players, others)) = result {
                                 let msg_to_others =
                                     serde_json::to_string(&ServerMsg::OJoinSucc(name.clone()))
                                         .unwrap();
+
                                 for mut s in others {
                                     let _ = s.text(msg_to_others.clone()).await;
                                 }
 
                                 let msg_to_me =
-                                    serde_json::to_string(&ServerMsg::JoinSucc(old_names))
+                                    serde_json::to_string(&ServerMsg::JoinSucc(old_players))
                                         .unwrap();
+
                                 let _ = session.text(msg_to_me).await;
-                            } 
+                            }
                         }
 
                         ClientMsg::Prepare => {
