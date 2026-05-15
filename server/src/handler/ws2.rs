@@ -44,7 +44,9 @@ pub struct WsGuessResponse {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
     Start,
-    JoinSucc(String), // player's name
+    CreateRoomOk,
+    OJoinSucc(String),     // other player's name
+    JoinSucc(Vec<String>), // other players' names
     Response(String),
     GuessResp(WsGuessResponse, usize),
     OGuessResp(BangumiSubjectHide), // another guy's resp
@@ -88,6 +90,7 @@ pub struct RoomInfo {
     pub state: RoomState,
     pub name: String,
     pub player_num: usize,
+    pub id: String,
 }
 
 #[derive(Clone)]
@@ -97,6 +100,17 @@ pub struct Player {
     pub session: Session,
 }
 
+#[derive(Deserialize)]
+pub struct CreateRoomReq {
+    pub room_name: String,
+    pub user_name: String,
+}
+
+#[derive(Serialize)]
+pub struct CreateRoomRes {
+    pub room_id: String,
+}
+
 pub async fn get_rooms(
     _req: HttpRequest,
     data: web::Data<MultiState>,
@@ -104,8 +118,9 @@ pub async fn get_rooms(
     let rooms = data.rooms.lock().unwrap();
 
     let room_list: Vec<RoomInfo> = rooms
-        .values()
-        .map(|room| RoomInfo {
+        .iter()
+        .map(|(id, room)| RoomInfo {
+            id: id.clone(),
             state: room.state.clone(),
             name: room.name.clone(),
             player_num: room.players.len(),
@@ -115,15 +130,41 @@ pub async fn get_rooms(
     Ok(HttpResponse::Ok().json(room_list))
 }
 
+pub async fn create_room(
+    req_body: web::Json<CreateRoomReq>,
+    data: web::Data<MultiState>,
+) -> actix_web::Result<impl Responder> {
+    let mut rooms = data.rooms.lock().unwrap();
+
+    if rooms.len() >= MAX_ROOM {
+        return Ok(HttpResponse::BadRequest().body("Max rooms reached"));
+    }
+
+    let room_id = Uuid::new_v4().to_string();
+
+    let new_room = Room {
+        name: req_body.room_name.clone(),
+        state: RoomState::Waiting,
+        players: Vec::new(),
+        data: None,
+    };
+
+    rooms.insert(room_id.clone(), new_room);
+    println!("Room created {} {}", req_body.room_name, room_id);
+
+    Ok(HttpResponse::Ok().json(CreateRoomRes { room_id }))
+}
+
+const MAX_GUESS: usize = 20;
+const MAX_ROOM: usize = 100;
+const MAX_PLAYER: usize = 10;
+
 pub async fn ws(
     req: HttpRequest,
     body: web::Payload,
     data: web::Data<MultiState>,
 ) -> actix_web::Result<impl Responder> {
     let (response, mut session, mut msg_stream) = actix_ws::handle(&req, body)?;
-    const MAX_GUESS: usize = 20;
-    const MAX_ROOM: usize = 100;
-    const MAX_PLAYER: usize = 10;
     let state = data.get_ref().clone();
 
     actix_web::rt::spawn(async move {
@@ -184,17 +225,14 @@ pub async fn ws(
                                 state.user_room.lock().unwrap().insert(user_id, room_id);
                             }
                             println!("{} create a room: {}.", name, room_name);
+                            let msg_str = serde_json::to_string(&ServerMsg::CreateRoomOk).unwrap();
+                            let _ = session.text(msg_str.clone()).await;
                         }
 
                         ClientMsg::Join(room_id, name) => {
                             let user_id = current_user_id.clone();
-                            let player = Player {
-                                id: user_id.clone(),
-                                name: name.clone(),
-                                session: session.clone(),
-                            };
 
-                            let sessions = {
+                            let result = {
                                 let mut rooms = state.rooms.lock().unwrap();
                                 if let Some(room) = rooms.get_mut(&room_id) {
                                     if room.players.len() >= MAX_PLAYER
@@ -202,31 +240,49 @@ pub async fn ws(
                                     {
                                         None
                                     } else {
-                                        room.players.push((player, PlayerData::default()));
+                                        let existing_player_names: Vec<String> =
+                                            room.players.iter().map(|p| p.0.name.clone()).collect();
+                                        let new_player = Player {
+                                            id: user_id.clone(),
+                                            name: name.clone(),
+                                            session: session.clone(),
+                                        };
+
+                                        room.players.push((new_player, PlayerData::default()));
+
                                         state
                                             .user_room
                                             .lock()
                                             .unwrap()
                                             .insert(user_id.clone(), room_id.clone());
-                                        Some(
-                                            room.players
-                                                .iter()
-                                                .map(|p| p.0.session.clone())
-                                                .collect::<Vec<_>>(),
-                                        )
+
+                                        let other_sessions: Vec<_> = room
+                                            .players
+                                            .iter()
+                                            .filter(|p| p.0.id != user_id)
+                                            .map(|p| p.0.session.clone())
+                                            .collect();
+
+                                        Some((existing_player_names, other_sessions))
                                     }
                                 } else {
                                     None
                                 }
                             };
 
-                            if let Some(sessions) = sessions {
-                                let msg_str =
-                                    serde_json::to_string(&ServerMsg::JoinSucc(name)).unwrap();
-                                for mut s in sessions {
-                                    let _ = s.text(msg_str.clone()).await;
+                            if let Some((old_names, others)) = result {
+                                let msg_to_others =
+                                    serde_json::to_string(&ServerMsg::OJoinSucc(name.clone()))
+                                        .unwrap();
+                                for mut s in others {
+                                    let _ = s.text(msg_to_others.clone()).await;
                                 }
-                            }
+
+                                let msg_to_me =
+                                    serde_json::to_string(&ServerMsg::JoinSucc(old_names))
+                                        .unwrap();
+                                let _ = session.text(msg_to_me).await;
+                            } 
                         }
 
                         ClientMsg::Prepare => {

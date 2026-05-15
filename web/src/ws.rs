@@ -1,9 +1,9 @@
 use futures::{SinkExt, StreamExt};
 use gloo_net::websocket::{Message, futures::WebSocket};
 use leptos::task::spawn_local;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use web_sys::window;
-use reqwest::Client;
 
 use crate::bangumi::anime::*;
 
@@ -35,7 +35,9 @@ pub struct WsGuessResponse {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
     Start,
-    JoinSucc(String), // player's name
+    CreateRoomOk,
+    JoinSucc(Vec<String>), // other players' names
+    OJoinSucc(String), // other player's name
     Response(String),
     GuessResp(WsGuessResponse, usize),
     OGuessResp(BangumiSubjectHide), // another guy's resp
@@ -48,6 +50,7 @@ pub enum ServerMsg {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct RoomInfo {
+    pub id: String,
     pub state: RoomState,
     pub name: String,
     pub player_num: usize,
@@ -94,17 +97,13 @@ pub async fn get_rooms() -> Vec<RoomInfo> {
     let client = Client::new();
 
     let url = if cfg!(debug_assertions) {
-        format!("http://localhost:8060/api/bangumi/anime/get_rooms")
+        format!("http://localhost:8060/api/bangumi/anime/rooms")
     } else {
         let origin = window().unwrap().location().origin().unwrap();
-        format!("{}/api/bangumi/anime/get_rooms", origin)
+        format!("{}/api/bangumi/anime/rooms", origin)
     };
 
-    let res = client
-        .get(url)
-        .fetch_credentials_include()
-        .send()
-        .await;
+    let res = client.get(url).fetch_credentials_include().send().await;
     if let Ok(response) = res {
         if response.status() == 200 {
             if let Ok(result) = response.json().await {
@@ -115,4 +114,38 @@ pub async fn get_rooms() -> Vec<RoomInfo> {
     vec![]
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct CreateRoomReq {
+    pub room_name: String,
+    pub user_name: String,
+}
 
+#[derive(Serialize, Deserialize)]
+pub struct CreateRoomRes {
+    pub room_id: String,
+}
+
+pub async fn create_a_room(room_name: String, user_name: String) -> bool {
+    let client = Client::new();
+
+    let url = if cfg!(debug_assertions) {
+        format!("http://localhost:8060/api/bangumi/anime/create_room")
+    } else {
+        let origin = window().unwrap().location().origin().unwrap();
+        format!("{}/api/bangumi/anime/create_room", origin)
+    };
+    let req = CreateRoomReq {
+        room_name, user_name
+    };
+
+    let res = client.post(url).fetch_credentials_include().json(&req).send().await;
+    if let Ok(response) = res {
+        if response.status() == 200 {
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}

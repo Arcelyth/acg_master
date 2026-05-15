@@ -17,6 +17,7 @@ use crate::ws::*;
 pub enum GameState {
     Lobby, // before matching
     Matching,
+    Waiting, // waiting in room
     Loading,
     Playing,
     Exhausted,
@@ -48,6 +49,7 @@ pub fn Multi() -> impl IntoView {
     // for chat
     let (chat_log, set_chat_log) = signal::<Vec<ChatEntry>>(vec![]);
     let (username, set_username) = signal("".to_string());
+    let (room_name, set_room_name) = signal("".to_string());
     let (text, set_text) = signal("".to_string());
     let config = use_context::<ReadSignal<Config>>().expect("reader");
 
@@ -79,6 +81,8 @@ pub fn Multi() -> impl IntoView {
     let max_guess = 20;
     let (rooms, set_rooms) = signal::<Vec<RoomInfo>>(vec![]);
     let (players, set_players) = signal::<HashMap<String, PlayerEntry>>(HashMap::new());
+    let (join_trigger, set_join_trigger) = signal::<Option<String>>(None);
+    let (create_trigger, set_create_trigger) = signal::<Option<String>>(None);
 
     // disconnect
     on_cleanup(move || {
@@ -156,7 +160,7 @@ pub fn Multi() -> impl IntoView {
     let texts = move || match config.get().lang {
         Language::Chinese => (
             "输入名称",
-            "开始匹配",
+            "创建房间",
             "匹配中......",
             "输入动漫名称",
             "你赢了",
@@ -174,7 +178,7 @@ pub fn Multi() -> impl IntoView {
         ),
         Language::English => (
             "Input your name",
-            "Start matching",
+            "Create a room",
             "Matching...",
             "Input anime's name",
             "You Win",
@@ -198,13 +202,30 @@ pub fn Multi() -> impl IntoView {
 
             if let Ok(server_msg) = serde_json::from_str::<ServerMsg>(&msg) {
                 match server_msg {
-                    ServerMsg::JoinSucc(name) => {
+                    ServerMsg::JoinSucc(names) => {
+                        set_game_state.set(GameState::Waiting);
+                        set_players.update(|p| {
+                            p.insert(username.get(), PlayerEntry { is_prepared: false });
+                            for name in names {
+                                p.insert(name, PlayerEntry { is_prepared: false });
+                            }
+                        });
+                    }
+                    ServerMsg::OJoinSucc(name) => {
+                        set_game_state.set(GameState::Waiting);
                         set_players.update(|p| {
                             p.insert(name, PlayerEntry { is_prepared: false });
                         });
                     }
+
                     ServerMsg::Start => {
                         set_game_state.set(GameState::Playing);
+                    }
+                    ServerMsg::CreateRoomOk => {
+                        set_game_state.set(GameState::Waiting);
+                        set_players.update(|p| {
+                            p.insert(username.get(), PlayerEntry { is_prepared: false });
+                        });
                     }
                     ServerMsg::Prepare(name) => {
                         set_players.update(|p| {
@@ -283,16 +304,27 @@ pub fn Multi() -> impl IntoView {
         ws_sender.set_value(Some(sender));
     };
 
-    let start_match = move |_| {
-        let name_len = username.get().trim().len();
+    let create_room = move |_| {
+        let name_len = username.get().len();
         if name_len < 1 || name_len > 20 {
             return;
         }
 
-        set_game_state.set(GameState::Matching);
-
+        set_create_trigger.set(Some(room_name.get()));
         connect(());
     };
+
+    Effect::new(move |_| {
+        if let Some(name) = create_trigger.get() {
+            if let Some(tx) = ws_sender.get_value() {
+                let msg = ClientMsg::CreateRoom(name, username.get_untracked());
+                if let Ok(text) = serde_json::to_string(&msg) {
+                    let _ = tx.unbounded_send(Message::Text(text));
+                    set_create_trigger.set(None);
+                }
+            }
+        }
+    });
 
     let unique_search_results = move || {
         let res = search_results.get().flatten().unwrap_or_default();
@@ -384,6 +416,28 @@ pub fn Multi() -> impl IntoView {
         }
     };
 
+    let join_room = move |id: String| {
+        let name_len = username.get().len();
+        if name_len < 1 || name_len > 20 {
+            return;
+        }
+
+        set_join_trigger.set(Some(id));
+        connect(());
+    };
+
+    Effect::new(move |_| {
+        if let Some(id) = join_trigger.get() {
+            if let Some(tx) = ws_sender.get_value() {
+                let msg = ClientMsg::Join(id, username.get_untracked());
+                if let Ok(text) = serde_json::to_string(&msg) {
+                    let _ = tx.unbounded_send(Message::Text(text));
+                    set_join_trigger.set(None);
+                }
+            }
+        }
+    });
+
     let reset_icon = move || {
         view! {
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -406,6 +460,34 @@ pub fn Multi() -> impl IntoView {
                     <BackBtn />
                 </div>
 
+                <Show when=move || !players.get().is_empty()>
+                    <div class=styles::players_table_container>
+                        <table class=styles::players_table>
+                            <thead>
+                                <tr>
+                                    <th class=styles::th_cell>"玩家"</th>
+                                    <th class=styles::th_cell>"状态"</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {move || {
+                                    let mut p_list: Vec<_> = players.get().into_iter().collect();
+                                    p_list.sort_by(|a, b| a.0.cmp(&b.0));
+                                    p_list.into_iter().map(|(name, entry)| {
+                                        let status = if entry.is_prepared { "已准备" } else { "未准备" };
+                                        let st_class = if entry.is_prepared { styles::status_ready } else { styles::status_unready };
+                                        view! {
+                                            <tr class=styles::tr_row>
+                                                <td class=styles::td_cell>{name}</td>
+                                                <td class=styles::td_cell><span class=st_class>{status}</span></td>
+                                            </tr>
+                                        }
+                                    }).collect_view()
+                                }}
+                            </tbody>
+                        </table>
+                    </div>
+                </Show>
                 <Show when=move || game_state.get() == GameState::Lobby || game_state.get() == GameState::Matching>
                     <div class=styles::lobby_section>
                         <input
@@ -413,9 +495,49 @@ pub fn Multi() -> impl IntoView {
                             placeholder=texts().0
                             bind:value=(username, set_username)
                         />
-                        <button class=styles::match_btn on:click=start_match disabled=move || game_state.get() == GameState::Matching>
+                        <input
+                            class=styles::username_input
+                            placeholder=texts().0
+                            bind:value=(room_name, set_room_name)
+                        />
+                        <button class=styles::match_btn on:click=create_room disabled=move || game_state.get() == GameState::Matching>
                             {move || if game_state.get() == GameState::Matching { texts().2 } else { texts().1 }}
                         </button>
+                    </div>
+
+                    <div class=styles::room_list_section>
+                        <For
+                            each=move || rooms.get()
+                            key=|room| room.id.clone()
+                            children=move |room| {
+                                let state_text = match room.state {
+                                    RoomState::Waiting => "等待中",
+                                    RoomState::Playing => "游戏中",
+                                    RoomState::Finished => "已结束",
+                                };
+                                let state_class = match room.state {
+                                    RoomState::Waiting => styles::state_waiting,
+                                    RoomState::Playing => styles::state_playing,
+                                    RoomState::Finished => styles::state_finished,
+                                };
+                                view! {
+                                    <div class=styles::room_item>
+                                        <div class=styles::room_details>
+                                            <span class=styles::room_name>{room.name.clone()}</span>
+                                            <span class=styles::room_players>{room.player_num}"/10"</span>
+                                            <span class=state_class>{state_text}</span>
+                                        </div>
+                                        <button
+                                            class=styles::join_btn
+                                            on:click=move |_| join_room(room.id.clone())
+                                            disabled=move || room.state != RoomState::Waiting || game_state.get() == GameState::Matching
+                                        >
+                                            "加入"
+                                        </button>
+                                    </div>
+                                }
+                            }
+                        />
                     </div>
                 </Show>
                 <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
