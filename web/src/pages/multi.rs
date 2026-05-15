@@ -83,6 +83,7 @@ pub fn Multi() -> impl IntoView {
     let (players, set_players) = signal::<HashMap<String, PlayerEntry>>(HashMap::new());
     let (join_trigger, set_join_trigger) = signal::<Option<String>>(None);
     let (create_trigger, set_create_trigger) = signal::<Option<String>>(None);
+    let (is_host, set_is_host) = signal::<bool>(false);
 
     // disconnect
     on_cleanup(move || {
@@ -231,9 +232,11 @@ pub fn Multi() -> impl IntoView {
                     }
                     ServerMsg::CreateRoomOk => {
                         set_game_state.set(GameState::Waiting);
+                        set_is_host.set(true);
                         set_players.update(|p| {
                             p.insert(username.get(), PlayerEntry { is_prepared: false });
                         });
+
                     }
 
                     ServerMsg::Prepare(name) => {
@@ -451,6 +454,17 @@ pub fn Multi() -> impl IntoView {
         }
     };
 
+    let start_game = move |_| {
+        if let Some(tx) = ws_sender.get_value() {
+            let msg = ClientMsg::Start;
+            set_game_state.set(GameState::Loading);
+
+            if let Ok(text) = serde_json::to_string(&msg) {
+                let _ = tx.unbounded_send(Message::Text(text));
+            }
+        }
+    };
+
     let reset_icon = move || {
         view! {
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -653,8 +667,9 @@ pub fn Multi() -> impl IntoView {
                             <div class=styles::col_header_text>{move || texts().15.4}</div>
                         </div>
                     </div>
-
-                    <div class=styles::prepare_section>
+                    
+                    <Show when=move || game_state.get() == GameState::Waiting>
+                        <div class=styles::prepare_section>
                         <button
                             class=move || if players.get().get(&username.get()).map(|p| p.is_prepared).unwrap_or(false) {
                                 styles::prepare_btn_active
@@ -670,7 +685,24 @@ pub fn Multi() -> impl IntoView {
                                 }
                             }}
                         </button>
-                    </div>
+                        {
+                            move || {
+                                if is_host.get() {
+                                  view!(  
+                                  <div>
+                                      <button
+                                            class=styles::prepare_btn
+                                            on:click=start_game>
+                                            "Start"
+                                        </button></div>
+                                    )
+                                } else {
+                                    view!(<div><div></div></div>)
+                                }
+                            }
+                        }
+                        </div>
+                    </Show>
 
                      <div class=styles::hide_answers>
                         {move || {
@@ -706,6 +738,15 @@ pub fn Multi() -> impl IntoView {
                     <span class=styles::exhausted>
                         {move || texts().14}
                     </span>
+                </Show>
+
+                <Show
+                    when=move || game_state.get() == GameState::Loading
+                    fallback=move || view! { <div /> }
+                >
+                    <div class=styles::loader_wrapper>
+                        <div class=styles::spinner></div>
+                    </div>
                 </Show>
 
                   // the final answer

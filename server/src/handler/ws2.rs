@@ -81,6 +81,7 @@ pub enum RoomState {
 pub struct Room {
     pub state: RoomState,
     pub name: String,
+    pub host: String, // host's id
     pub players: Vec<(Player, PlayerData)>,
     pub data: Option<RoomData>,
 }
@@ -130,30 +131,31 @@ pub async fn get_rooms(
     Ok(HttpResponse::Ok().json(room_list))
 }
 
-pub async fn create_room(
-    req_body: web::Json<CreateRoomReq>,
-    data: web::Data<MultiState>,
-) -> actix_web::Result<impl Responder> {
-    let mut rooms = data.rooms.lock().unwrap();
-
-    if rooms.len() >= MAX_ROOM {
-        return Ok(HttpResponse::BadRequest().body("Max rooms reached"));
-    }
-
-    let room_id = Uuid::new_v4().to_string();
-
-    let new_room = Room {
-        name: req_body.room_name.clone(),
-        state: RoomState::Waiting,
-        players: Vec::new(),
-        data: None,
-    };
-
-    rooms.insert(room_id.clone(), new_room);
-    println!("Room created {} {}", req_body.room_name, room_id);
-
-    Ok(HttpResponse::Ok().json(CreateRoomRes { room_id }))
-}
+//pub async fn create_room(
+//    req_body: web::Json<CreateRoomReq>,
+//    data: web::Data<MultiState>,
+//) -> actix_web::Result<impl Responder> {
+//    let mut rooms = data.rooms.lock().unwrap();
+//
+//    if rooms.len() >= MAX_ROOM {
+//        return Ok(HttpResponse::BadRequest().body("Max rooms reached"));
+//    }
+//
+//    let room_id = Uuid::new_v4().to_string();
+//
+//    let new_room = Room {
+//        name: req_body.room_name.clone(),
+//        state: RoomState::Waiting,
+//        host: req_body.user_name.clone(),
+//        players: Vec::new(),
+//        data: None,
+//    };
+//
+//    rooms.insert(room_id.clone(), new_room);
+//    println!("Room created {} {}", req_body.room_name, room_id);
+//
+//    Ok(HttpResponse::Ok().json(CreateRoomRes { room_id }))
+//}
 
 const MAX_GUESS: usize = 20;
 const MAX_ROOM: usize = 100;
@@ -215,6 +217,7 @@ pub async fn ws(
                             let room = Room {
                                 name: room_name.clone(),
                                 state: RoomState::Waiting,
+                                host: user_id.clone(),
                                 players: vec![(player, PlayerData::default())],
                                 data: None,
                             };
@@ -353,18 +356,22 @@ pub async fn ws(
                                         let sessions = {
                                             let mut rooms = state.rooms.lock().unwrap();
                                             if let Some(room) = rooms.get_mut(&rid) {
-                                                room.state = RoomState::Playing;
-                                                let data = RoomData {
-                                                    answer: answer,
-                                                    max_guess: MAX_GUESS,
-                                                };
-                                                room.data = Some(data);
-                                                Some(
-                                                    room.players
-                                                        .iter()
-                                                        .map(|p| p.0.session.clone())
-                                                        .collect::<Vec<_>>(),
-                                                )
+                                                if room.host == *uid {
+                                                    room.state = RoomState::Playing;
+                                                    let data = RoomData {
+                                                        answer: answer,
+                                                        max_guess: MAX_GUESS,
+                                                    };
+                                                    room.data = Some(data);
+                                                    Some(
+                                                        room.players
+                                                            .iter()
+                                                            .map(|p| p.0.session.clone())
+                                                            .collect::<Vec<_>>(),
+                                                    )
+                                                } else {
+                                                    None
+                                                }
                                             } else {
                                                 None
                                             }
