@@ -899,3 +899,42 @@ main {
     font-size: 0.95rem;
   }
 }
+
+.table_header {
+  display: flex;
+  flex-direction: row;
+  gap: 1.5rem;
+  padding: 0.5rem 1rem;
+  align-items: center;
+  background-color: transparent;
+  border-bottom: 2px solid var(--card-border);
+  margin-bottom: 0.5rem;
+  width: 100%;
+  font-weight: bold;
+  color: var(--wrong-color);
+  font-size: 0.875rem;
+}
+
+.header_image_placeholder {
+  flex-shrink: 0;
+  width: 7.8125rem;
+  text-align: center;
+}
+
+.header_content_grid {
+  display: grid;
+
+  grid-template-columns: 12rem 6rem 10rem 1fr; 
+  gap: 1.25rem;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.col_header_text {
+  padding-left: 0.25rem;
+  text-align: center;
+}
+
+.center_text {
+  text-align: center;
+}

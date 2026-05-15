@@ -2,14 +2,14 @@ use gloo_net::websocket::Message;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use stylance::import_crate_style;
 
 import_crate_style!(styles, "./src/pages/styles/multi.module.scss");
 
 use crate::bangumi::anime::*;
-use crate::components::{back_btn::BackBtn, card::Card, hide_card::HideCard};
+use crate::components::{back_btn::BackBtn, card2::Card2, hide_card::HideCard};
 use crate::config::{Config, Language};
 use crate::ws::*;
 
@@ -35,6 +35,11 @@ pub enum ChatSide {
 pub struct ChatEntry {
     side: ChatSide,
     content: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerEntry {
+    is_prepared: bool,
 }
 
 #[component]
@@ -72,6 +77,8 @@ pub fn Multi() -> impl IntoView {
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
 
     let max_guess = 20;
+    let (rooms, set_rooms) = signal::<Vec<RoomInfo>>(vec![]);
+    let (players, set_players) = signal::<HashMap<String, PlayerEntry>>(HashMap::new());
 
     // disconnect
     on_cleanup(move || {
@@ -87,6 +94,13 @@ pub fn Multi() -> impl IntoView {
         if state == GameState::Win || state == GameState::Lose {
             set_is_timer_running.set(false);
         }
+    });
+
+    Effect::new(move |_| {
+        spawn_local(async move {
+            let rooms = get_rooms().await;
+            set_rooms.set(rooms);
+        });
     });
 
     // debounce
@@ -156,6 +170,7 @@ pub fn Multi() -> impl IntoView {
             "已在列表中",
             "答案",
             "次数用尽",
+            ("封面", "标题与集数", "评分", "放送日期", "标签"),
         ),
         Language::English => (
             "Input your name",
@@ -173,6 +188,7 @@ pub fn Multi() -> impl IntoView {
             "Already in the list",
             "ANSWER",
             "Run out of guess times",
+            ("Cover", "Title & Eps", "Rating", "Air Date", "Tags"),
         ),
     };
 
@@ -182,13 +198,22 @@ pub fn Multi() -> impl IntoView {
 
             if let Ok(server_msg) = serde_json::from_str::<ServerMsg>(&msg) {
                 match server_msg {
-                    ServerMsg::JoinSucc(name1, name2) => {
+                    ServerMsg::JoinSucc(name) => {
+                        set_players.update(|p| {
+                            p.insert(name, PlayerEntry { is_prepared: false });
+                        });
+                    }
+                    ServerMsg::Start => {
                         set_game_state.set(GameState::Playing);
-                        if name1 == username.get() {
-                            set_p2.set(name2);
-                        } else {
-                            set_p2.set(name1);
-                        }
+                    }
+                    ServerMsg::Prepare(name) => {
+                        set_players.update(|p| {
+                            if let Some(pe) = p.get(&name) {
+                                set_players.update(|p| {
+                                    p.insert(name, PlayerEntry { is_prepared: true });
+                                })
+                            }
+                        });
                     }
                     ServerMsg::Response(m) => {
                         set_chat_log.update(|v| {
@@ -250,7 +275,7 @@ pub fn Multi() -> impl IntoView {
                 }
             }
         });
-        let join_msg = ClientMsg::Join(username.get());
+        let join_msg = ClientMsg::Join("".to_string(), username.get());
         if let Ok(text) = serde_json::to_string(&join_msg) {
             let _ = sender.unbounded_send(Message::Text(text));
         }
@@ -488,6 +513,20 @@ pub fn Multi() -> impl IntoView {
 
                     // all the answers
                   <div class=styles::display_section>
+                    // the table header
+                  <div class=styles::table_header>
+                        <div class=styles::header_image_placeholder>
+                            {move || texts().15.0}
+                        </div>
+
+                        <div class=styles::header_content_grid>
+                            <div class=styles::col_header_text>{move || texts().15.1}</div>
+                            <div class=styles::center_text>{move || texts().15.2}</div>
+                            <div class=styles::center_text>{move || texts().15.3}</div>
+                            <div class=styles::col_header_text>{move || texts().15.4}</div>
+                        </div>
+                    </div>
+
                      <div class=styles::hide_answers>
                         {move || {
                             hide_cards.get()
@@ -510,7 +549,7 @@ pub fn Multi() -> impl IntoView {
                           key=|(item, _)| item.id.clone()
                           children=move |(item, comp_res)| {
                               view! {
-                                      <Card info=item comparison=comp_res />
+                                      <Card2 info=item comparison=comp_res />
                                   }
                               }
                       />
@@ -565,7 +604,7 @@ pub fn Multi() -> impl IntoView {
                                           <Suspense fallback=|| view! { "..." }>
                                               {move || Suspend::new(async move {
                                                   match answer.get() {
-                                                      Some(a) => view! {<div> <Card info=a.0.clone() comparison=a.1/> </div>},
+                                                      Some(a) => view! {<div> <Card2 info=a.0.clone() comparison=a.1/> </div>},
                                                       None => view! { <div><span></span> </div> }
                                                   }
                                               })}
@@ -638,11 +677,9 @@ where
     let interval_millis = interval_millis.into();
 
     Effect::new(move |_| {
-        let handle = set_interval_with_handle(
-            f.clone(),
-            Duration::from_millis(interval_millis.get()),
-        )
-        .expect("could not create interval");
+        let handle =
+            set_interval_with_handle(f.clone(), Duration::from_millis(interval_millis.get()))
+                .expect("could not create interval");
 
         on_cleanup(move || {
             handle.clear();

@@ -3,16 +3,27 @@ use gloo_net::websocket::{Message, futures::WebSocket};
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 use web_sys::window;
+use reqwest::Client;
 
 use crate::bangumi::anime::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientMsg {
-    Join(String), // name
+    Join(String, String),       // room_id and username
+    CreateRoom(String, String), // room name and creator's name
+    Start,
     Message(String),
     Guess(BangumiSubject),
+    Prepare,
     Reset,
-    ILeave,
+    ILeave, // sender leave
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub enum RoomState {
+    Waiting,
+    Playing,
+    Finished,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -23,14 +34,23 @@ pub struct WsGuessResponse {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
-    JoinSucc(String, String),
+    Start,
+    JoinSucc(String), // player's name
     Response(String),
     GuessResp(WsGuessResponse, usize),
     OGuessResp(BangumiSubjectHide), // another guy's resp
     Over(bool, (BangumiSubject, CompareResult)),
+    Prepare(String), // player's name
     Reset,
     ResetOk,
-    Leave(BangumiSubject, CompareResult),
+    Leave(BangumiSubject, CompareResult), // opponent leave
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct RoomInfo {
+    pub state: RoomState,
+    pub name: String,
+    pub player_num: usize,
 }
 
 pub fn connect_ws(
@@ -69,3 +89,30 @@ pub fn connect_ws(
 
     tx
 }
+
+pub async fn get_rooms() -> Vec<RoomInfo> {
+    let client = Client::new();
+
+    let url = if cfg!(debug_assertions) {
+        format!("http://localhost:8060/api/bangumi/anime/get_rooms")
+    } else {
+        let origin = window().unwrap().location().origin().unwrap();
+        format!("{}/api/bangumi/anime/get_rooms", origin)
+    };
+
+    let res = client
+        .get(url)
+        .fetch_credentials_include()
+        .send()
+        .await;
+    if let Ok(response) = res {
+        if response.status() == 200 {
+            if let Ok(result) = response.json().await {
+                return result;
+            }
+        }
+    }
+    vec![]
+}
+
+

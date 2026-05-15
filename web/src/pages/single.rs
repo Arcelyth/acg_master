@@ -10,7 +10,6 @@ import_crate_style!(styles, "./src/pages/styles/single.module.scss");
 
 use crate::bangumi::anime::*;
 use crate::components::back_btn::BackBtn;
-use crate::components::card::Card;
 use crate::components::card2::Card2;
 use crate::config::{Config, Language};
 
