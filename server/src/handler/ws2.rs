@@ -1,4 +1,4 @@
-use actix_web::{HttpRequest, Responder, web};
+use actix_web::{HttpRequest, HttpResponse, Responder, web};
 use actix_ws::{Message, Session};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -59,8 +59,6 @@ pub enum ServerMsg {
 pub struct RoomData {
     pub answer: BangumiSubject,
     pub max_guess: usize,
-    //    pub reset: (bool, bool),
-    //    pub guess_time: (usize, usize),
 }
 
 #[derive(Clone, Default)]
@@ -70,7 +68,7 @@ pub struct PlayerData {
     pub is_prepared: bool,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub enum RoomState {
     Waiting,
     Playing,
@@ -82,9 +80,14 @@ pub struct Room {
     pub state: RoomState,
     pub name: String,
     pub players: Vec<(Player, PlayerData)>,
-    //    pub p1: Player,
-    //    pub p2: Player,
     pub data: Option<RoomData>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct RoomInfo {
+    pub state: RoomState,
+    pub name: String,
+    pub player_num: usize,
 }
 
 #[derive(Clone)]
@@ -92,6 +95,24 @@ pub struct Player {
     pub id: String,
     pub name: String,
     pub session: Session,
+}
+
+pub async fn get_rooms(
+    _req: HttpRequest,
+    data: web::Data<MultiState>,
+) -> actix_web::Result<impl Responder> {
+    let rooms = data.rooms.lock().unwrap();
+
+    let room_list: Vec<RoomInfo> = rooms
+        .values()
+        .map(|room| RoomInfo {
+            state: room.state.clone(),
+            name: room.name.clone(),
+            player_num: room.players.len(),
+        })
+        .collect();
+
+    Ok(HttpResponse::Ok().json(room_list))
 }
 
 pub async fn ws(
@@ -176,12 +197,23 @@ pub async fn ws(
                             let sessions = {
                                 let mut rooms = state.rooms.lock().unwrap();
                                 if let Some(room) = rooms.get_mut(&room_id) {
-                                    if room.players.len() >= MAX_PLAYER || room.players.iter().any(|p| p.0.name == name) {
+                                    if room.players.len() >= MAX_PLAYER
+                                        || room.players.iter().any(|p| p.0.name == name)
+                                    {
                                         None
                                     } else {
                                         room.players.push((player, PlayerData::default()));
-                                        state.user_room.lock().unwrap().insert(user_id.clone(), room_id.clone());
-                                        Some(room.players.iter().map(|p| p.0.session.clone()).collect::<Vec<_>>())
+                                        state
+                                            .user_room
+                                            .lock()
+                                            .unwrap()
+                                            .insert(user_id.clone(), room_id.clone());
+                                        Some(
+                                            room.players
+                                                .iter()
+                                                .map(|p| p.0.session.clone())
+                                                .collect::<Vec<_>>(),
+                                        )
                                     }
                                 } else {
                                     None
@@ -189,7 +221,8 @@ pub async fn ws(
                             };
 
                             if let Some(sessions) = sessions {
-                                let msg_str = serde_json::to_string(&ServerMsg::JoinSucc(name)).unwrap();
+                                let msg_str =
+                                    serde_json::to_string(&ServerMsg::JoinSucc(name)).unwrap();
                                 for mut s in sessions {
                                     let _ = s.text(msg_str.clone()).await;
                                 }
@@ -211,13 +244,24 @@ pub async fn ws(
                                                 break;
                                             }
                                         }
-                                        Some((room.players.iter().map(|p| p.0.session.clone()).collect::<Vec<_>>(), name))
-                                    } else { None }
-                                } else { None }
+                                        Some((
+                                            room.players
+                                                .iter()
+                                                .map(|p| p.0.session.clone())
+                                                .collect::<Vec<_>>(),
+                                            name,
+                                        ))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
                             };
 
                             if let Some((sessions, name)) = sessions_and_name {
-                                let msg_str = serde_json::to_string(&ServerMsg::Prepare(name)).unwrap();
+                                let msg_str =
+                                    serde_json::to_string(&ServerMsg::Prepare(name)).unwrap();
                                 for mut s in sessions {
                                     let _ = s.text(msg_str.clone()).await;
                                 }
@@ -239,7 +283,10 @@ pub async fn ws(
 
                                 if is_ready {
                                     if let Some(answer) = fetch_random_anime(1960, 2026).await {
-                                        println!("Generate answer: {} \n {}", answer.name, answer.name_cn);
+                                        println!(
+                                            "Generate answer: {} \n {}",
+                                            answer.name, answer.name_cn
+                                        );
                                         let sessions = {
                                             let mut rooms = state.rooms.lock().unwrap();
                                             if let Some(room) = rooms.get_mut(&rid) {
@@ -249,14 +296,20 @@ pub async fn ws(
                                                     max_guess: MAX_GUESS,
                                                 };
                                                 room.data = Some(data);
-                                                Some(room.players.iter().map(|p| p.0.session.clone()).collect::<Vec<_>>())
+                                                Some(
+                                                    room.players
+                                                        .iter()
+                                                        .map(|p| p.0.session.clone())
+                                                        .collect::<Vec<_>>(),
+                                                )
                                             } else {
                                                 None
                                             }
                                         };
 
                                         if let Some(sessions) = sessions {
-                                            let msg_str = serde_json::to_string(&ServerMsg::Start).unwrap();
+                                            let msg_str =
+                                                serde_json::to_string(&ServerMsg::Start).unwrap();
                                             for mut s in sessions {
                                                 let _ = s.text(msg_str.clone()).await;
                                             }
@@ -273,22 +326,30 @@ pub async fn ws(
                                 if let Some(rid) = rid {
                                     let rooms = state.rooms.lock().unwrap();
                                     if let Some(room) = rooms.get(&rid) {
-                                        Some(room.players.iter()
-                                            .filter(|p| p.0.id != *uid)
-                                            .map(|p| p.0.session.clone())
-                                            .collect::<Vec<_>>())
-                                    } else { None }
-                                } else { None }
+                                        Some(
+                                            room.players
+                                                .iter()
+                                                .filter(|p| p.0.id != *uid)
+                                                .map(|p| p.0.session.clone())
+                                                .collect::<Vec<_>>(),
+                                        )
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
                             };
 
                             if let Some(sessions) = target_sessions {
-                                let msg_str = serde_json::to_string(&ServerMsg::Response(m)).unwrap();
+                                let msg_str =
+                                    serde_json::to_string(&ServerMsg::Response(m)).unwrap();
                                 for mut s in sessions {
                                     let _ = s.text(msg_str.clone()).await;
                                 }
                             }
                         }
-                        
+
                         ClientMsg::Guess(guess) => {
                             let uid = &current_user_id;
                             let rid = {
@@ -301,13 +362,17 @@ pub async fn ws(
 
                             let (mut sender_session, other_sessions, cur_gt, answer, max_guess) = {
                                 let mut rooms = state.rooms.lock().unwrap();
-                                let Some(room) = rooms.get_mut(&rid) else { continue; };
-                                
+                                let Some(room) = rooms.get_mut(&rid) else {
+                                    continue;
+                                };
+
                                 if room.state == RoomState::Finished {
                                     continue;
                                 }
 
-                                let Some(data) = &room.data else { continue; };
+                                let Some(data) = &room.data else {
+                                    continue;
+                                };
                                 let max_guess = data.max_guess;
                                 let answer = data.answer.clone();
 
@@ -329,13 +394,27 @@ pub async fn ws(
                                     continue;
                                 }
 
-                                let cur_gt = room.players.iter().find(|p| p.0.id == *uid).unwrap().1.guess_time;
-                                let other_sessions: Vec<_> = room.players.iter()
+                                let cur_gt = room
+                                    .players
+                                    .iter()
+                                    .find(|p| p.0.id == *uid)
+                                    .unwrap()
+                                    .1
+                                    .guess_time;
+                                let other_sessions: Vec<_> = room
+                                    .players
+                                    .iter()
                                     .filter(|p| p.0.id != *uid)
                                     .map(|p| p.0.session.clone())
                                     .collect();
 
-                                (sender_session.unwrap(), other_sessions, cur_gt, answer, max_guess)
+                                (
+                                    sender_session.unwrap(),
+                                    other_sessions,
+                                    cur_gt,
+                                    answer,
+                                    max_guess,
+                                )
                             };
 
                             let is_correct = is_guess_right(&guess, &answer);
@@ -346,7 +425,8 @@ pub async fn ws(
                             let is_draw = {
                                 let rooms = state.rooms.lock().unwrap();
                                 if let Some(room) = rooms.get(&rid) {
-                                    !is_correct && room.players.iter().all(|p| p.1.guess_time >= max_guess)
+                                    !is_correct
+                                        && room.players.iter().all(|p| p.1.guess_time >= max_guess)
                                 } else {
                                     false
                                 }
@@ -364,25 +444,43 @@ pub async fn ws(
                                 comparison: comparison.clone(),
                             };
 
-                            let _ = sender_session.text(
-                                serde_json::to_string(&ServerMsg::GuessResp(resp, cur_gt)).unwrap()
-                            ).await;
+                            let _ = sender_session
+                                .text(
+                                    serde_json::to_string(&ServerMsg::GuessResp(resp, cur_gt))
+                                        .unwrap(),
+                                )
+                                .await;
 
-                            let target_msg = serde_json::to_string(&ServerMsg::OGuessResp(comp_hide)).unwrap();
+                            let target_msg =
+                                serde_json::to_string(&ServerMsg::OGuessResp(comp_hide)).unwrap();
                             for mut s in other_sessions.clone() {
                                 let _ = s.text(target_msg.clone()).await;
                             }
 
                             if is_correct {
-                                let _ = sender_session.text(
-                                    serde_json::to_string(&ServerMsg::Over(true, (answer.clone(), right_comp.clone()))).unwrap()
-                                ).await;
-                                let over_target_msg = serde_json::to_string(&ServerMsg::Over(false, (answer.clone(), right_comp.clone()))).unwrap();
+                                let _ = sender_session
+                                    .text(
+                                        serde_json::to_string(&ServerMsg::Over(
+                                            true,
+                                            (answer.clone(), right_comp.clone()),
+                                        ))
+                                        .unwrap(),
+                                    )
+                                    .await;
+                                let over_target_msg = serde_json::to_string(&ServerMsg::Over(
+                                    false,
+                                    (answer.clone(), right_comp.clone()),
+                                ))
+                                .unwrap();
                                 for mut s in other_sessions {
                                     let _ = s.text(over_target_msg.clone()).await;
                                 }
                             } else if is_draw {
-                                let draw_msg = serde_json::to_string(&ServerMsg::Over(false, (answer.clone(), right_comp.clone()))).unwrap();
+                                let draw_msg = serde_json::to_string(&ServerMsg::Over(
+                                    false,
+                                    (answer.clone(), right_comp.clone()),
+                                ))
+                                .unwrap();
                                 let _ = sender_session.text(draw_msg.clone()).await;
                                 for mut s in other_sessions {
                                     let _ = s.text(draw_msg.clone()).await;
@@ -404,8 +502,10 @@ pub async fn ws(
 
                             let (should_restart, sessions) = {
                                 let mut rooms = state.rooms.lock().unwrap();
-                                let Some(room) = rooms.get_mut(&rid) else { continue; };
-                                
+                                let Some(room) = rooms.get_mut(&rid) else {
+                                    continue;
+                                };
+
                                 let mut all_reset = true;
                                 for player in &mut room.players {
                                     if player.0.id == *uid {
@@ -416,11 +516,14 @@ pub async fn ws(
                                     }
                                 }
 
-                                let sessions: Vec<_> = room.players.iter().map(|p| p.0.session.clone()).collect();
+                                let sessions: Vec<_> =
+                                    room.players.iter().map(|p| p.0.session.clone()).collect();
                                 (all_reset, sessions)
                             };
 
-                            let _ = session.text(serde_json::to_string(&ServerMsg::ResetOk).unwrap()).await;
+                            let _ = session
+                                .text(serde_json::to_string(&ServerMsg::ResetOk).unwrap())
+                                .await;
 
                             if should_restart {
                                 if let Some(answer) = fetch_random_anime(1960, 2026).await {
@@ -439,7 +542,8 @@ pub async fn ws(
                                         continue;
                                     }
 
-                                    let reset_msg = serde_json::to_string(&ServerMsg::Reset).unwrap();
+                                    let reset_msg =
+                                        serde_json::to_string(&ServerMsg::Reset).unwrap();
                                     for mut s in sessions {
                                         let _ = s.text(reset_msg.clone()).await;
                                     }
@@ -456,7 +560,7 @@ pub async fn ws(
         println!("Cleaning up user: {}", current_user_id);
 
         let rid = state.user_room.lock().unwrap().remove(&current_user_id);
-        
+
         let mut sessions_to_notify = Vec::new();
         let mut leave_msg = None;
 
@@ -471,7 +575,13 @@ pub async fn ws(
                 if !room_empty {
                     if let Some(data) = &room.data {
                         let right_comp = compare_anime(&data.answer, &data.answer);
-                        leave_msg = Some(serde_json::to_string(&ServerMsg::Leave(data.answer.clone(), right_comp)).unwrap());
+                        leave_msg = Some(
+                            serde_json::to_string(&ServerMsg::Leave(
+                                data.answer.clone(),
+                                right_comp,
+                            ))
+                            .unwrap(),
+                        );
                     }
                     sessions_to_notify = room.players.iter().map(|p| p.0.session.clone()).collect();
                 }
