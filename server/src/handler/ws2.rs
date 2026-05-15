@@ -1,0 +1,495 @@
+use actix_web::{HttpRequest, Responder, web};
+use actix_ws::{Message, Session};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use uuid::Uuid;
+
+use crate::handler::bangumi::*;
+
+#[derive(Clone)]
+pub struct MultiState {
+    rooms: Arc<Mutex<HashMap<String, Room>>>,
+    user_room: Arc<Mutex<HashMap<String, String>>>,
+}
+
+impl MultiState {
+    pub fn new() -> Self {
+        Self {
+            rooms: Arc::new(Mutex::new(HashMap::new())),
+            user_room: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ClientMsg {
+    Join(String, String),       // room_id and username
+    CreateRoom(String, String), // room name and creator's name
+    Start,
+    Message(String),
+    Guess(BangumiSubject),
+    Prepare,
+    Reset,
+    ILeave, // sender leave
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WsGuessResponse {
+    pub guess: BangumiSubject,
+    pub comparison: CompareResult,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ServerMsg {
+    Start,
+    JoinSucc(String), // player's name
+    Response(String),
+    GuessResp(WsGuessResponse, usize),
+    OGuessResp(BangumiSubjectHide), // another guy's resp
+    Over(bool, (BangumiSubject, CompareResult)),
+    Prepare(String), // player's name
+    Reset,
+    ResetOk,
+    Leave(BangumiSubject, CompareResult), // opponent leave
+}
+
+#[derive(Clone)]
+pub struct RoomData {
+    pub answer: BangumiSubject,
+    pub max_guess: usize,
+    //    pub reset: (bool, bool),
+    //    pub guess_time: (usize, usize),
+}
+
+#[derive(Clone, Default)]
+pub struct PlayerData {
+    pub reset: bool,
+    pub guess_time: usize,
+    pub is_prepared: bool,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum RoomState {
+    Waiting,
+    Playing,
+    Finished,
+}
+
+#[derive(Clone)]
+pub struct Room {
+    pub state: RoomState,
+    pub name: String,
+    pub players: Vec<(Player, PlayerData)>,
+    //    pub p1: Player,
+    //    pub p2: Player,
+    pub data: Option<RoomData>,
+}
+
+#[derive(Clone)]
+pub struct Player {
+    pub id: String,
+    pub name: String,
+    pub session: Session,
+}
+
+pub async fn ws(
+    req: HttpRequest,
+    body: web::Payload,
+    data: web::Data<MultiState>,
+) -> actix_web::Result<impl Responder> {
+    let (response, mut session, mut msg_stream) = actix_ws::handle(&req, body)?;
+    const MAX_GUESS: usize = 20;
+    const MAX_ROOM: usize = 100;
+    const MAX_PLAYER: usize = 10;
+    let state = data.get_ref().clone();
+
+    actix_web::rt::spawn(async move {
+        let current_user_id = format!("user-{}", Uuid::new_v4());
+
+        // token bucket
+        let mut last_tick = Instant::now();
+        let mut tokens: f64 = 10.0;
+        let max_tokens: f64 = 10.0;
+        let refill_rate: f64 = 2.0;
+
+        while let Some(Ok(msg)) = msg_stream.recv().await {
+            match msg {
+                Message::Ping(bytes) => {
+                    if session.pong(&bytes).await.is_err() {
+                        return;
+                    }
+                }
+                Message::Pong(_) => {}
+                Message::Close(_) => break,
+                Message::Binary(_) | Message::Continuation(_) | Message::Nop => {}
+                Message::Text(msg) => {
+                    // rate limiting
+                    let now = Instant::now();
+                    let elapsed = now.duration_since(last_tick).as_secs_f64();
+                    last_tick = now;
+                    tokens = (tokens + elapsed * refill_rate).min(max_tokens);
+                    if tokens < 1.0 {
+                        println!(
+                            "Rate limit exceeded for user: {}. Closing connection.",
+                            current_user_id
+                        );
+                        break;
+                    }
+                    tokens -= 1.0;
+
+                    let Ok(client_msg) = serde_json::from_str::<ClientMsg>(&msg) else {
+                        continue;
+                    };
+                    match client_msg {
+                        ClientMsg::CreateRoom(room_name, name) => {
+                            let user_id = current_user_id.clone();
+                            let player = Player {
+                                id: user_id.clone(),
+                                name: name.clone(),
+                                session: session.clone(),
+                            };
+                            let room = Room {
+                                name: room_name.clone(),
+                                state: RoomState::Waiting,
+                                players: vec![(player, PlayerData::default())],
+                                data: None,
+                            };
+                            let mut rooms = state.rooms.lock().unwrap();
+                            let room_id = Uuid::new_v4().to_string();
+                            if rooms.len() < MAX_ROOM {
+                                rooms.insert(room_id.clone(), room);
+                                state.user_room.lock().unwrap().insert(user_id, room_id);
+                            }
+                            println!("{} create a room: {}.", name, room_name);
+                        }
+
+                        ClientMsg::Join(room_id, name) => {
+                            let user_id = current_user_id.clone();
+                            let player = Player {
+                                id: user_id.clone(),
+                                name: name.clone(),
+                                session: session.clone(),
+                            };
+
+                            let sessions = {
+                                let mut rooms = state.rooms.lock().unwrap();
+                                if let Some(room) = rooms.get_mut(&room_id) {
+                                    if room.players.len() >= MAX_PLAYER || room.players.iter().any(|p| p.0.name == name) {
+                                        None
+                                    } else {
+                                        room.players.push((player, PlayerData::default()));
+                                        state.user_room.lock().unwrap().insert(user_id.clone(), room_id.clone());
+                                        Some(room.players.iter().map(|p| p.0.session.clone()).collect::<Vec<_>>())
+                                    }
+                                } else {
+                                    None
+                                }
+                            };
+
+                            if let Some(sessions) = sessions {
+                                let msg_str = serde_json::to_string(&ServerMsg::JoinSucc(name)).unwrap();
+                                for mut s in sessions {
+                                    let _ = s.text(msg_str.clone()).await;
+                                }
+                            }
+                        }
+
+                        ClientMsg::Prepare => {
+                            let uid = &current_user_id;
+                            let sessions_and_name = {
+                                let rid = state.user_room.lock().unwrap().get(uid).cloned();
+                                if let Some(rid) = rid {
+                                    let mut rooms = state.rooms.lock().unwrap();
+                                    if let Some(room) = rooms.get_mut(&rid) {
+                                        let mut name = String::new();
+                                        for player in &mut room.players {
+                                            if player.0.id == *uid {
+                                                player.1.is_prepared = true;
+                                                name = player.0.name.clone();
+                                                break;
+                                            }
+                                        }
+                                        Some((room.players.iter().map(|p| p.0.session.clone()).collect::<Vec<_>>(), name))
+                                    } else { None }
+                                } else { None }
+                            };
+
+                            if let Some((sessions, name)) = sessions_and_name {
+                                let msg_str = serde_json::to_string(&ServerMsg::Prepare(name)).unwrap();
+                                for mut s in sessions {
+                                    let _ = s.text(msg_str.clone()).await;
+                                }
+                            }
+                        }
+
+                        ClientMsg::Start => {
+                            let uid = &current_user_id;
+                            let rid = state.user_room.lock().unwrap().get(uid).cloned();
+                            if let Some(rid) = rid {
+                                let is_ready = {
+                                    let rooms = state.rooms.lock().unwrap();
+                                    if let Some(room) = rooms.get(&rid) {
+                                        !room.players.iter().any(|p| !p.1.is_prepared)
+                                    } else {
+                                        false
+                                    }
+                                };
+
+                                if is_ready {
+                                    if let Some(answer) = fetch_random_anime(1960, 2026).await {
+                                        println!("Generate answer: {} \n {}", answer.name, answer.name_cn);
+                                        let sessions = {
+                                            let mut rooms = state.rooms.lock().unwrap();
+                                            if let Some(room) = rooms.get_mut(&rid) {
+                                                room.state = RoomState::Playing;
+                                                let data = RoomData {
+                                                    answer: answer,
+                                                    max_guess: MAX_GUESS,
+                                                };
+                                                room.data = Some(data);
+                                                Some(room.players.iter().map(|p| p.0.session.clone()).collect::<Vec<_>>())
+                                            } else {
+                                                None
+                                            }
+                                        };
+
+                                        if let Some(sessions) = sessions {
+                                            let msg_str = serde_json::to_string(&ServerMsg::Start).unwrap();
+                                            for mut s in sessions {
+                                                let _ = s.text(msg_str.clone()).await;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        ClientMsg::Message(m) => {
+                            let uid = &current_user_id;
+                            let target_sessions = {
+                                let rid = state.user_room.lock().unwrap().get(uid).cloned();
+                                if let Some(rid) = rid {
+                                    let rooms = state.rooms.lock().unwrap();
+                                    if let Some(room) = rooms.get(&rid) {
+                                        Some(room.players.iter()
+                                            .filter(|p| p.0.id != *uid)
+                                            .map(|p| p.0.session.clone())
+                                            .collect::<Vec<_>>())
+                                    } else { None }
+                                } else { None }
+                            };
+
+                            if let Some(sessions) = target_sessions {
+                                let msg_str = serde_json::to_string(&ServerMsg::Response(m)).unwrap();
+                                for mut s in sessions {
+                                    let _ = s.text(msg_str.clone()).await;
+                                }
+                            }
+                        }
+                        
+                        ClientMsg::Guess(guess) => {
+                            let uid = &current_user_id;
+                            let rid = {
+                                let map = state.user_room.lock().unwrap();
+                                map.get(uid).cloned()
+                            };
+                            let Some(rid) = rid else {
+                                continue;
+                            };
+
+                            let (mut sender_session, other_sessions, cur_gt, answer, max_guess) = {
+                                let mut rooms = state.rooms.lock().unwrap();
+                                let Some(room) = rooms.get_mut(&rid) else { continue; };
+                                
+                                if room.state == RoomState::Finished {
+                                    continue;
+                                }
+
+                                let Some(data) = &room.data else { continue; };
+                                let max_guess = data.max_guess;
+                                let answer = data.answer.clone();
+
+                                let mut exceeded = false;
+                                let mut sender_session = None;
+
+                                for player in &mut room.players {
+                                    if player.0.id == *uid {
+                                        if player.1.guess_time >= max_guess {
+                                            exceeded = true;
+                                        } else {
+                                            player.1.guess_time += 1;
+                                            sender_session = Some(player.0.session.clone());
+                                        }
+                                    }
+                                }
+
+                                if exceeded || sender_session.is_none() {
+                                    continue;
+                                }
+
+                                let cur_gt = room.players.iter().find(|p| p.0.id == *uid).unwrap().1.guess_time;
+                                let other_sessions: Vec<_> = room.players.iter()
+                                    .filter(|p| p.0.id != *uid)
+                                    .map(|p| p.0.session.clone())
+                                    .collect();
+
+                                (sender_session.unwrap(), other_sessions, cur_gt, answer, max_guess)
+                            };
+
+                            let is_correct = is_guess_right(&guess, &answer);
+                            let comparison = compare_anime(&guess, &answer);
+                            let right_comp = compare_anime(&answer, &answer);
+                            let comp_hide = get_hide_subject(&answer, &guess);
+
+                            let is_draw = {
+                                let rooms = state.rooms.lock().unwrap();
+                                if let Some(room) = rooms.get(&rid) {
+                                    !is_correct && room.players.iter().all(|p| p.1.guess_time >= max_guess)
+                                } else {
+                                    false
+                                }
+                            };
+
+                            if is_correct || is_draw {
+                                let mut rooms = state.rooms.lock().unwrap();
+                                if let Some(room) = rooms.get_mut(&rid) {
+                                    room.state = RoomState::Finished;
+                                }
+                            }
+
+                            let resp = WsGuessResponse {
+                                guess,
+                                comparison: comparison.clone(),
+                            };
+
+                            let _ = sender_session.text(
+                                serde_json::to_string(&ServerMsg::GuessResp(resp, cur_gt)).unwrap()
+                            ).await;
+
+                            let target_msg = serde_json::to_string(&ServerMsg::OGuessResp(comp_hide)).unwrap();
+                            for mut s in other_sessions.clone() {
+                                let _ = s.text(target_msg.clone()).await;
+                            }
+
+                            if is_correct {
+                                let _ = sender_session.text(
+                                    serde_json::to_string(&ServerMsg::Over(true, (answer.clone(), right_comp.clone()))).unwrap()
+                                ).await;
+                                let over_target_msg = serde_json::to_string(&ServerMsg::Over(false, (answer.clone(), right_comp.clone()))).unwrap();
+                                for mut s in other_sessions {
+                                    let _ = s.text(over_target_msg.clone()).await;
+                                }
+                            } else if is_draw {
+                                let draw_msg = serde_json::to_string(&ServerMsg::Over(false, (answer.clone(), right_comp.clone()))).unwrap();
+                                let _ = sender_session.text(draw_msg.clone()).await;
+                                for mut s in other_sessions {
+                                    let _ = s.text(draw_msg.clone()).await;
+                                }
+                            }
+                        }
+
+                        ClientMsg::Reset => {
+                            let uid = &current_user_id;
+
+                            let rid = {
+                                let map = state.user_room.lock().unwrap();
+                                map.get(uid).cloned()
+                            };
+
+                            let Some(rid) = rid else {
+                                continue;
+                            };
+
+                            let (should_restart, sessions) = {
+                                let mut rooms = state.rooms.lock().unwrap();
+                                let Some(room) = rooms.get_mut(&rid) else { continue; };
+                                
+                                let mut all_reset = true;
+                                for player in &mut room.players {
+                                    if player.0.id == *uid {
+                                        player.1.reset = true;
+                                    }
+                                    if !player.1.reset {
+                                        all_reset = false;
+                                    }
+                                }
+
+                                let sessions: Vec<_> = room.players.iter().map(|p| p.0.session.clone()).collect();
+                                (all_reset, sessions)
+                            };
+
+                            let _ = session.text(serde_json::to_string(&ServerMsg::ResetOk).unwrap()).await;
+
+                            if should_restart {
+                                if let Some(answer) = fetch_random_anime(1960, 2026).await {
+                                    let mut rooms = state.rooms.lock().unwrap();
+                                    if let Some(room) = rooms.get_mut(&rid) {
+                                        if let Some(data) = &mut room.data {
+                                            data.answer = answer.clone();
+                                        }
+                                        room.state = RoomState::Waiting;
+                                        for player in &mut room.players {
+                                            player.1.reset = false;
+                                            player.1.guess_time = 0;
+                                            player.1.is_prepared = false;
+                                        }
+                                    } else {
+                                        continue;
+                                    }
+
+                                    let reset_msg = serde_json::to_string(&ServerMsg::Reset).unwrap();
+                                    for mut s in sessions {
+                                        let _ = s.text(reset_msg.clone()).await;
+                                    }
+                                }
+                            }
+                        }
+
+                        ClientMsg::ILeave => break,
+                    };
+                }
+            }
+        }
+
+        println!("Cleaning up user: {}", current_user_id);
+
+        let rid = state.user_room.lock().unwrap().remove(&current_user_id);
+        
+        let mut sessions_to_notify = Vec::new();
+        let mut leave_msg = None;
+
+        if let Some(rid) = rid {
+            let mut rooms = state.rooms.lock().unwrap();
+            let mut room_empty = false;
+
+            if let Some(room) = rooms.get_mut(&rid) {
+                room.players.retain(|p| p.0.id != current_user_id);
+                room_empty = room.players.is_empty();
+
+                if !room_empty {
+                    if let Some(data) = &room.data {
+                        let right_comp = compare_anime(&data.answer, &data.answer);
+                        leave_msg = Some(serde_json::to_string(&ServerMsg::Leave(data.answer.clone(), right_comp)).unwrap());
+                    }
+                    sessions_to_notify = room.players.iter().map(|p| p.0.session.clone()).collect();
+                }
+            }
+
+            if room_empty {
+                rooms.remove(&rid);
+            }
+        }
+
+        if let Some(msg) = leave_msg {
+            for mut s in sessions_to_notify {
+                let _ = s.text(msg.clone()).await;
+            }
+        }
+
+        let _ = session.close(None).await;
+    });
+
+    Ok(response)
+}
