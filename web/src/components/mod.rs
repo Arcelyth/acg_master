@@ -7,3 +7,4 @@ pub mod card2;
 pub mod footer;
 pub mod back_btn;
 pub mod hide_card;
+pub mod hide_card2;

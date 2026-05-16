@@ -518,14 +518,6 @@ main {
   padding-top: 1rem;
 }
 
-.hide_answers {
-  border-top: 4px solid #b34d4d;
-}
-
-.your_answers {
-  border-top: 4px solid #4d8060;
-}
-
 .your_answers :global(.card_container),
 .hide_answers :global(.hide_card_container) {
   width: 100%;
@@ -1196,3 +1188,5 @@ main {
     border-color: #262626;
   }
 }
+
+

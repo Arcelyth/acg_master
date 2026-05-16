@@ -49,7 +49,7 @@ pub enum ServerMsg {
     JoinSucc(Vec<(String, PlayerData)>), // other players' name and data
     Response(String),
     GuessResp(WsGuessResponse, usize),
-    OGuessResp(BangumiSubjectHide), // another guy's resp
+    OGuessResp(String, BangumiSubjectHide), // another guy's resp
     Over(bool, (BangumiSubject, CompareResult)),
     Prepare(String), // player's name
     Reset,
@@ -430,7 +430,14 @@ pub async fn ws(
                                 continue;
                             };
 
-                            let (mut sender_session, other_sessions, cur_gt, answer, max_guess) = {
+                            let (
+                                mut sender_session,
+                                other_sessions,
+                                cur_gt,
+                                answer,
+                                max_guess,
+                                name,
+                            ) = {
                                 let mut rooms = state.rooms.lock().unwrap();
                                 let Some(room) = rooms.get_mut(&rid) else {
                                     continue;
@@ -464,13 +471,13 @@ pub async fn ws(
                                     continue;
                                 }
 
-                                let cur_gt = room
-                                    .players
-                                    .iter()
-                                    .find(|p| p.0.id == *uid)
-                                    .unwrap()
-                                    .1
-                                    .guess_time;
+                                let current_player =
+                                    room.players.iter().find(|p| p.0.id == *uid).unwrap();
+
+                                let cur_gt = current_player.1.guess_time;
+
+                                let name = current_player.0.name.clone();
+
                                 let other_sessions: Vec<_> = room
                                     .players
                                     .iter()
@@ -484,6 +491,7 @@ pub async fn ws(
                                     cur_gt,
                                     answer,
                                     max_guess,
+                                    name,
                                 )
                             };
 
@@ -521,8 +529,11 @@ pub async fn ws(
                                 )
                                 .await;
 
-                            let target_msg =
-                                serde_json::to_string(&ServerMsg::OGuessResp(comp_hide)).unwrap();
+                            let target_msg = serde_json::to_string(&ServerMsg::OGuessResp(
+                                name.to_string(),
+                                comp_hide,
+                            ))
+                            .unwrap();
                             for mut s in other_sessions.clone() {
                                 let _ = s.text(target_msg.clone()).await;
                             }

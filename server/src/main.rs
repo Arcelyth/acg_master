@@ -19,7 +19,6 @@ fn init_api(cfg: &mut ServiceConfig) {
             .route("/start_game", web::post().to(start_new_game))
             .route("/verify_guess", web::post().to(verify_guess))
             .route("/rooms", web::get().to(get_rooms))
-            .route("/create_room", web::post().to(create_room))
             .route("/ws", web::get().to(ws)),
     );
 }
