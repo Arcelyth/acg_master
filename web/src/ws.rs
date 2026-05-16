@@ -47,7 +47,8 @@ pub enum ServerMsg {
     OJoinSucc(String), // other player's name
     Response(String),
     GuessResp(WsGuessResponse, usize),
-    OGuessResp(String, BangumiSubjectHide), // another guy's resp
+//    OGuessResp(String, (BangumiSubjectHide, usize)), // another guy's resp
+    OGuessResp(String, usize), // another guy's resp
     Over(bool, (BangumiSubject, CompareResult)),
     Prepare(String), // player's name
     Reset,

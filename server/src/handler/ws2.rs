@@ -49,7 +49,7 @@ pub enum ServerMsg {
     JoinSucc(Vec<(String, PlayerData)>), // other players' name and data
     Response(String),
     GuessResp(WsGuessResponse, usize),
-    OGuessResp(String, BangumiSubjectHide), // another guy's resp
+    OGuessResp(String, usize), // another guy's resp and guess_time
     Over(bool, (BangumiSubject, CompareResult)),
     Prepare(String), // player's name
     Reset,
@@ -130,32 +130,6 @@ pub async fn get_rooms(
 
     Ok(HttpResponse::Ok().json(room_list))
 }
-
-//pub async fn create_room(
-//    req_body: web::Json<CreateRoomReq>,
-//    data: web::Data<MultiState>,
-//) -> actix_web::Result<impl Responder> {
-//    let mut rooms = data.rooms.lock().unwrap();
-//
-//    if rooms.len() >= MAX_ROOM {
-//        return Ok(HttpResponse::BadRequest().body("Max rooms reached"));
-//    }
-//
-//    let room_id = Uuid::new_v4().to_string();
-//
-//    let new_room = Room {
-//        name: req_body.room_name.clone(),
-//        state: RoomState::Waiting,
-//        host: req_body.user_name.clone(),
-//        players: Vec::new(),
-//        data: None,
-//    };
-//
-//    rooms.insert(room_id.clone(), new_room);
-//    println!("Room created {} {}", req_body.room_name, room_id);
-//
-//    Ok(HttpResponse::Ok().json(CreateRoomRes { room_id }))
-//}
 
 const MAX_GUESS: usize = 20;
 const MAX_ROOM: usize = 100;
@@ -531,7 +505,8 @@ pub async fn ws(
 
                             let target_msg = serde_json::to_string(&ServerMsg::OGuessResp(
                                 name.to_string(),
-                                comp_hide,
+//                                (comp_hide, cur_gt),
+                                cur_gt
                             ))
                             .unwrap();
                             for mut s in other_sessions.clone() {
