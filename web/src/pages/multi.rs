@@ -35,8 +35,9 @@ pub enum ChatSide {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChatEntry {
-    side: ChatSide,
+    name: String,
     content: String,
+    is_sys: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -146,8 +147,9 @@ pub fn Multi() -> impl IntoView {
 
         set_chat_log.update(|v| {
             v.push(ChatEntry {
-                side: ChatSide::I,
+                name: username.get(),
                 content: current_msg.clone(),
+                is_sys: false,
             });
         });
 
@@ -272,11 +274,12 @@ pub fn Multi() -> impl IntoView {
                             }
                         });
                     }
-                    ServerMsg::Response(m) => {
+                    ServerMsg::Response(name, m) => {
                         set_chat_log.update(|v| {
                             v.push(ChatEntry {
-                                side: ChatSide::O,
+                                name,
                                 content: m,
+                                is_sys: false
                             });
                         });
                     }
@@ -350,8 +353,9 @@ pub fn Multi() -> impl IntoView {
                     ServerMsg::Leave(answer, comp) => {
                         set_chat_log.update(|v| {
                             v.push(ChatEntry {
-                                side: ChatSide::Sys,
+                                name: String::new(),
                                 content: texts().11.to_string(),
+                                is_sys: true,
                             });
                         });
                         set_answer.set(Some((answer, comp)));
@@ -907,27 +911,39 @@ pub fn Multi() -> impl IntoView {
                 // chat
               <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
                     <div class=styles::chat_panel>
-
                         <div class=styles::chat_messages>
                             {move || {
-                            chat_log.get()
-                                .iter()
-                                .enumerate()
-                                .map(|(_, item)| {
-                                    let bubble_class = match item.side {
-                                        ChatSide::I => styles::chat_item_me,
-                                        ChatSide::O => styles::chat_item_other,
-                                        ChatSide::Sys => styles::chat_item_sys,
-                                    };
-                                    view! {
-                                        <div class=bubble_class>
-                                            {format!("{}", item.content.clone())}
-                                        </div>
-                                    }
-                                })
-                                .collect::<Vec<_>>()
+                                chat_log.get()
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(_, item)| {
+                                        if item.is_sys {
+                                            view! {
+                                                <div class=styles::chat_item_sys>
+                                                    {item.content.clone()}
+                                                </div>
+                                            }.into_any()
+                                        } else if item.name == username.get() {
+                                            view! {
+                                                <div class=styles::chat_wrapper_me>
+                                                    <div class=styles::chat_item_me>
+                                                        {item.content.clone()}
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        } else {
+                                            view! {
+                                                <div class=styles::chat_wrapper_other>
+                                                    <span class=styles::chat_name>{item.name.clone()}</span>
+                                                    <div class=styles::chat_item_other>
+                                                        {item.content.clone()}
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                    })
+                                    .collect::<Vec<_>>()
                             }}
-
                         </div>
                         <div class=styles::chat_input_row>
                             <input
@@ -944,6 +960,8 @@ pub fn Multi() -> impl IntoView {
                                 {texts().10}
                             </button>
                         </div>
+
+
                     </div>
                 </Show>
 

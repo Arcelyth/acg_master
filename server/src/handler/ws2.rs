@@ -47,7 +47,7 @@ pub enum ServerMsg {
     CreateRoomOk,
     OJoinSucc(String),                   // other player's name
     JoinSucc(Vec<(String, PlayerData)>), // other players' name and data
-    Response(String),
+    Response(String, String),            // username and message
     GuessResp(WsGuessResponse, usize),
     OGuessResp(String, usize), // another guy's resp and guess_time
     Over(
@@ -373,29 +373,39 @@ pub async fn ws(
 
                         ClientMsg::Message(m) => {
                             let uid = &current_user_id;
-                            let target_sessions = {
+                            let (target_sessions, name) = {
                                 let rid = state.user_room.lock().unwrap().get(uid).cloned();
+
                                 if let Some(rid) = rid {
                                     let rooms = state.rooms.lock().unwrap();
+
                                     if let Some(room) = rooms.get(&rid) {
-                                        Some(
-                                            room.players
-                                                .iter()
-                                                .filter(|p| p.0.id != *uid)
-                                                .map(|p| p.0.session.clone())
-                                                .collect::<Vec<_>>(),
-                                        )
+                                        let target_sessions = room
+                                            .players
+                                            .iter()
+                                            .filter(|p| p.0.id != *uid)
+                                            .map(|p| p.0.session.clone())
+                                            .collect::<Vec<_>>();
+
+                                        let name = room
+                                            .players
+                                            .iter()
+                                            .find(|p| p.0.id == *uid)
+                                            .map(|p| p.0.name.clone())
+                                            .unwrap_or_default();
+
+                                        (Some(target_sessions), name)
                                     } else {
-                                        None
+                                        (None, String::new())
                                     }
                                 } else {
-                                    None
+                                    (None, String::new())
                                 }
                             };
 
                             if let Some(sessions) = target_sessions {
                                 let msg_str =
-                                    serde_json::to_string(&ServerMsg::Response(m)).unwrap();
+                                    serde_json::to_string(&ServerMsg::Response(name, m)).unwrap();
                                 for mut s in sessions {
                                     let _ = s.text(msg_str.clone()).await;
                                 }
@@ -547,7 +557,7 @@ pub async fn ws(
                                 for mut s in other_sessions {
                                     let _ = s.text(over_target_msg.clone()).await;
                                 }
-        
+
                                 // reset
                                 {
                                     let mut rooms = state.rooms.lock().unwrap();

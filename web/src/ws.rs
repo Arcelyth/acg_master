@@ -47,7 +47,7 @@ pub enum ServerMsg {
     CreateRoomOk,
     JoinSucc(Vec<(String, PlayerData)>), // other players' name and data
     OJoinSucc(String),                   // other player's name
-    Response(String),
+    Response(String, String),
     GuessResp(WsGuessResponse, usize),
     //    OGuessResp(String, (BangumiSubjectHide, usize)), // another guy's resp
     OGuessResp(String, usize), // another guy's resp
