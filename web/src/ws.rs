@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use futures::{SinkExt, StreamExt};
 use gloo_net::websocket::{Message, futures::WebSocket};
 use leptos::task::spawn_local;
@@ -44,12 +46,17 @@ pub enum ServerMsg {
     Start,
     CreateRoomOk,
     JoinSucc(Vec<(String, PlayerData)>), // other players' name and data
-    OJoinSucc(String), // other player's name
+    OJoinSucc(String),                   // other player's name
     Response(String),
     GuessResp(WsGuessResponse, usize),
-//    OGuessResp(String, (BangumiSubjectHide, usize)), // another guy's resp
+    //    OGuessResp(String, (BangumiSubjectHide, usize)), // another guy's resp
     OGuessResp(String, usize), // another guy's resp
-    Over(bool, (BangumiSubject, CompareResult)),
+    Over(
+        Option<String>,
+        HashMap<String, Vec<String>>,
+        (BangumiSubject, CompareResult),
+    ), // winner's name
+
     Prepare(String), // player's name
     Reset,
     ResetOk,
@@ -143,10 +150,16 @@ pub async fn create_a_room(room_name: String, user_name: String) -> bool {
         format!("{}/api/bangumi/anime/create_room", origin)
     };
     let req = CreateRoomReq {
-        room_name, user_name
+        room_name,
+        user_name,
     };
 
-    let res = client.post(url).fetch_credentials_include().json(&req).send().await;
+    let res = client
+        .post(url)
+        .fetch_credentials_include()
+        .json(&req)
+        .send()
+        .await;
     if let Ok(response) = res {
         if response.status() == 200 {
             true

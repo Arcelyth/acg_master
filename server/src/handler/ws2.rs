@@ -50,8 +50,12 @@ pub enum ServerMsg {
     Response(String),
     GuessResp(WsGuessResponse, usize),
     OGuessResp(String, usize), // another guy's resp and guess_time
-    Over(bool, (BangumiSubject, CompareResult)),
-    Prepare(String), // player's name
+    Over(
+        Option<String>,
+        HashMap<String, Vec<String>>,
+        (BangumiSubject, CompareResult),
+    ), // winner's name
+    Prepare(String),           // player's name
     Reset,
     ResetOk,
     Leave(BangumiSubject, CompareResult), // opponent leave
@@ -68,6 +72,7 @@ pub struct PlayerData {
     pub reset: bool,
     pub guess_time: usize,
     pub is_prepared: bool,
+    pub guesses: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -99,17 +104,6 @@ pub struct Player {
     pub id: String,
     pub name: String,
     pub session: Session,
-}
-
-#[derive(Deserialize)]
-pub struct CreateRoomReq {
-    pub room_name: String,
-    pub user_name: String,
-}
-
-#[derive(Serialize)]
-pub struct CreateRoomRes {
-    pub room_id: String,
 }
 
 pub async fn get_rooms(
@@ -426,7 +420,6 @@ pub async fn ws(
                                 };
                                 let max_guess = data.max_guess;
                                 let answer = data.answer.clone();
-
                                 let mut exceeded = false;
                                 let mut sender_session = None;
 
@@ -436,6 +429,7 @@ pub async fn ws(
                                             exceeded = true;
                                         } else {
                                             player.1.guess_time += 1;
+                                            player.1.guesses.push(guess.name_cn.clone());
                                             sender_session = Some(player.0.session.clone());
                                         }
                                     }
@@ -472,7 +466,7 @@ pub async fn ws(
                             let is_correct = is_guess_right(&guess, &answer);
                             let comparison = compare_anime(&guess, &answer);
                             let right_comp = compare_anime(&answer, &answer);
-                            let comp_hide = get_hide_subject(&answer, &guess);
+                            //                            let comp_hide = get_hide_subject(&answer, &guess);
 
                             let is_draw = {
                                 let rooms = state.rooms.lock().unwrap();
@@ -484,10 +478,16 @@ pub async fn ws(
                                 }
                             };
 
+                            let mut all_guesses: HashMap<String, Vec<String>> = HashMap::new();
                             if is_correct || is_draw {
                                 let mut rooms = state.rooms.lock().unwrap();
                                 if let Some(room) = rooms.get_mut(&rid) {
                                     room.state = RoomState::Finished;
+                                    all_guesses = room
+                                        .players
+                                        .iter()
+                                        .map(|p| (p.0.name.clone(), p.1.guesses.clone()))
+                                        .collect();
                                 }
                             }
 
@@ -505,8 +505,8 @@ pub async fn ws(
 
                             let target_msg = serde_json::to_string(&ServerMsg::OGuessResp(
                                 name.to_string(),
-//                                (comp_hide, cur_gt),
-                                cur_gt
+                                //                                (comp_hide, cur_gt),
+                                cur_gt,
                             ))
                             .unwrap();
                             for mut s in other_sessions.clone() {
@@ -517,14 +517,16 @@ pub async fn ws(
                                 let _ = sender_session
                                     .text(
                                         serde_json::to_string(&ServerMsg::Over(
-                                            true,
+                                            Some(name.clone()),
+                                            all_guesses.clone(),
                                             (answer.clone(), right_comp.clone()),
                                         ))
                                         .unwrap(),
                                     )
                                     .await;
                                 let over_target_msg = serde_json::to_string(&ServerMsg::Over(
-                                    false,
+                                    Some(name),
+                                    all_guesses,
                                     (answer.clone(), right_comp.clone()),
                                 ))
                                 .unwrap();
@@ -533,7 +535,8 @@ pub async fn ws(
                                 }
                             } else if is_draw {
                                 let draw_msg = serde_json::to_string(&ServerMsg::Over(
-                                    false,
+                                    None,
+                                    all_guesses,
                                     (answer.clone(), right_comp.clone()),
                                 ))
                                 .unwrap();

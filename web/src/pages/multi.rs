@@ -25,6 +25,7 @@ pub enum GameState {
     Exhausted,
     Win,
     Lose,
+    Draw,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -87,15 +88,8 @@ pub fn Multi() -> impl IntoView {
     let (join_trigger, set_join_trigger) = signal::<Option<String>>(None);
     let (create_trigger, set_create_trigger) = signal::<Option<String>>(None);
     let (is_host, set_is_host) = signal::<bool>(false);
-    let (hovered_player, set_hovered_player) = signal::<Option<String>>(None);
-
-    let is_hovering_other = move || {
-        if let Some(hovered) = hovered_player.get() {
-            hovered != username.get()
-        } else {
-            false
-        }
-    };
+    let (winner, set_winner) = signal::<Option<String>>(None);
+    let (all_guesses, set_all_guesses) = signal::<HashMap<String, Vec<String>>>(HashMap::new());
 
     // disconnect
     on_cleanup(move || {
@@ -176,8 +170,8 @@ pub fn Multi() -> impl IntoView {
             "创建房间",
             "匹配中......",
             "输入动漫名称",
-            "你赢了",
-            "你输了",
+            "胜者：",
+            "没人猜对",
             "发送",
             "输入你的答案",
             "等待对方中......",
@@ -194,8 +188,8 @@ pub fn Multi() -> impl IntoView {
             "Create a room",
             "Matching...",
             "Input anime's name",
-            "You Win",
-            "You Lose",
+            "Winner: ",
+            "No one guessed it right.",
             "Send",
             "Input your answer",
             "Waiting for the opponent...",
@@ -307,16 +301,22 @@ pub fn Multi() -> impl IntoView {
                                 entry.guess_time = gt;
                             }
                         });
-//                        set_hide_cards.update(|c| {
-//                            c.entry(name).or_insert_with(Vec::new).push(hide);
-//                        });
+                        //                        set_hide_cards.update(|c| {
+                        //                            c.entry(name).or_insert_with(Vec::new).push(hide);
+                        //                        });
                     }
-                    ServerMsg::Over(win, answer) => {
-                        if win {
-                            set_game_state.set(GameState::Win);
+                    ServerMsg::Over(winner, all_guesses,  answer) => {
+                        if let Some(winner) = winner.clone() {
+                            if winner == username.get() {
+                                set_game_state.set(GameState::Win);
+                            } else {
+                                set_game_state.set(GameState::Lose);
+                            }
                         } else {
-                            set_game_state.set(GameState::Lose);
+                            set_game_state.set(GameState::Draw);
                         }
+                        set_all_guesses.set(all_guesses);
+                        set_winner.set(winner);
                         set_answer.set(Some(answer));
                     }
                     ServerMsg::Reset => {
@@ -782,17 +782,19 @@ pub fn Multi() -> impl IntoView {
                    <div class=styles::answer_reveal_section>
                       {move || {
                           let state = game_state.get();
-                          if state == GameState::Win || state == GameState::Lose {
+                          if state == GameState::Win || state == GameState::Lose || state == GameState::Draw {
+                                let w = winner.get();
                               let (status_text, status_class) = match state {
-                                  GameState::Win => (texts().4, styles::status_win),
-                                  GameState::Lose => (texts().5, styles::status_lose),
-                                  _ => ("", ""),
+                                  GameState::Win => (format!("{} {}", texts().4, w.unwrap()), styles::status_win),
+                                  GameState::Lose => (format!("{} {}", texts().4, w.unwrap()), styles::status_lose),
+                                  GameState::Draw => (texts().5.to_string(), styles::status_draw),
+                                  _ => ("".to_string(), ""),
                               };
 
                               view! {
                                   <div>
                                       <div class=styles::reveal_container>
-                                          <h2 class=status_class>{move || status_text}</h2>
+                                          <h2 class=status_class>{status_text}</h2>
                                           <h4 class=status_class>{guess_time}/{max_guess}</h4>
                                           <h4 class=status_class>Time: {formatted_time}</h4>
                                         <div class=styles::btn_wrapper>
@@ -833,6 +835,69 @@ pub fn Multi() -> impl IntoView {
                       }}
                       </div>
                      </div>
+
+                    <Show
+                        when=move || {
+                            let s = game_state.get();
+                            s == GameState::Win || s == GameState::Lose || s == GameState::Draw
+                        }
+                        fallback=|| ()
+                    >
+                        <div class=styles::guess_history_wrapper>
+                            <table class=styles::guess_history_table>
+                                <thead>
+                                    <tr>
+                                        <For
+                                            each=move || {
+                                                let mut p: Vec<String> = all_guesses.get().keys().cloned().collect();
+                                                p.sort();
+                                                p
+                                            }
+                                            key=|name| name.clone()
+                                            children=move |name| {
+                                                view! { <th class=styles::guess_th>{name}</th> }
+                                            }
+                                        />
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <For
+                                        each=move || {
+                                            let max_rows = all_guesses.get().values().map(|v| v.len()).max().unwrap_or(0);
+                                            (0..max_rows).collect::<Vec<_>>()
+                                        }
+                                        key=|i| *i
+                                        children=move |row_idx| {
+                                            view! {
+                                                <tr class=styles::guess_tr>
+                                                    <For
+                                                        each=move || {
+                                                            let mut p: Vec<String> = all_guesses.get().keys().cloned().collect();
+                                                            p.sort();
+                                                            p
+                                                        }
+                                                        key=|name| name.clone()
+                                                        children=move |name| {
+                                                            let guess = move || {
+                                                                all_guesses.get()
+                                                                    .get(&name)
+                                                                    .and_then(|guesses| guesses.get(row_idx))
+                                                                    .cloned()
+                                                                    .unwrap_or_default()
+                                                            };
+                                                            view! {
+                                                                <td class=styles::guess_td>{guess}</td>
+                                                            }
+                                                        }
+                                                    />
+                                                </tr>
+                                            }
+                                        }
+                                    />
+                                </tbody>
+                            </table>
+                        </div>
+                    </Show>
                   </Show>
 
             </main>
