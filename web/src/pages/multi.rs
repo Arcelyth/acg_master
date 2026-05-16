@@ -89,6 +89,8 @@ pub fn Multi() -> impl IntoView {
     let (is_host, set_is_host) = signal::<bool>(false);
     let (winner, set_winner) = signal::<Option<String>>(None);
     let (all_guesses, set_all_guesses) = signal::<HashMap<String, Vec<String>>>(HashMap::new());
+    let (username_err, set_username_err) = create_signal(false);
+    let (room_name_err, set_room_name_err) = create_signal(false);
 
     // disconnect
     on_cleanup(move || {
@@ -369,7 +371,7 @@ pub fn Multi() -> impl IntoView {
         ws_sender.set_value(Some(sender));
     };
 
-    let create_room = move |_| {
+    let create_room = move || {
         let name_len = username.get().len();
         if name_len < 1 || name_len > 20 {
             return;
@@ -573,57 +575,100 @@ pub fn Multi() -> impl IntoView {
                     </div>
                 </Show>
                 <Show when=move || game_state.get() == GameState::Lobby || game_state.get() == GameState::Matching>
-                    <div class=styles::lobby_section>
-                        <input
-                            class=styles::username_input
-                            placeholder=texts().0
-                            bind:value=(username, set_username)
-                        />
-                        <input
-                            class=styles::username_input
-                            placeholder=texts().0
-                            bind:value=(room_name, set_room_name)
-                        />
-                        <button class=styles::match_btn on:click=create_room disabled=move || game_state.get() == GameState::Matching>
-                            {move || if game_state.get() == GameState::Matching { texts().2 } else { texts().1 }}
-                        </button>
-                    </div>
-
-                    <div class=styles::room_list_section>
-                        <For
-                            each=move || rooms.get()
-                            key=|room| room.id.clone()
-                            children=move |room| {
-                                let state_text = match room.state {
-                                    RoomState::Waiting => "等待中",
-                                    RoomState::Playing => "游戏中",
-                                    RoomState::Finished => "已结束",
-                                };
-                                let state_class = match room.state {
-                                    RoomState::Waiting => styles::state_waiting,
-                                    RoomState::Playing => styles::state_playing,
-                                    RoomState::Finished => styles::state_finished,
-                                };
-                                view! {
-                                    <div class=styles::room_item>
-                                        <div class=styles::room_details>
-                                            <span class=styles::room_name>{room.name.clone()}</span>
-                                            <span class=styles::room_players>{room.player_num}"/10"</span>
-                                            <span class=state_class>{state_text}</span>
-                                        </div>
-                                        <button
-                                            class=styles::join_btn
-                                            on:click=move |_| join_room(room.id.clone())
-                                            disabled=move || room.state != RoomState::Waiting || game_state.get() == GameState::Matching
-                                        >
-                                            "加入"
-                                        </button>
-                                    </div>
+                    <div class=styles::lobby_container>
+                        <div class=styles::lobby_section>
+                            <div class=styles::input_wrapper>
+                                <input
+                                    class=styles::username_input
+                                    placeholder=texts().0
+                                    bind:value=(username, set_username)
+                                    on:input=move |_| set_username_err.set(false)
+                                />
+                                <Show when=move || username_err.get() fallback=|| ()>
+                                    <span class=styles::error_msg>"用户名不能为空"</span>
+                                </Show>
+                            </div>
+                            <div class=styles::input_wrapper>
+                                <input
+                                    class=styles::username_input
+                                    placeholder=texts().0
+                                    bind:value=(room_name, set_room_name)
+                                    on:input=move |_| set_room_name_err.set(false)
+                                />
+                                <Show when=move || room_name_err.get() fallback=|| ()>
+                                    <span class=styles::error_msg>"房间名不能为空"</span>
+                                </Show>
+                            </div>
+                            <button
+                                class=styles::match_btn
+                                on:click=move |_| {
+                                    let mut valid = true;
+                                    if username.get().trim().is_empty() {
+                                        set_username_err.set(true);
+                                        valid = false;
+                                    }
+                                    if room_name.get().trim().is_empty() {
+                                        set_room_name_err.set(true);
+                                        valid = false;
+                                    }
+                                    if valid {
+                                        create_room();
+                                    }
                                 }
-                            }
-                        />
+                                disabled=move || game_state.get() == GameState::Matching
+                            >
+                                {move || if game_state.get() == GameState::Matching { texts().2 } else { texts().1 }}
+                            </button>
+                        </div>
+
+                        <div class=styles::room_list_section>
+                            <div class=styles::room_header>
+                                {move || format!("当前房间数：{}/100", rooms.get().len())}
+                            </div>
+                            <div class=styles::room_grid>
+                                <For
+                                    each=move || rooms.get()
+                                    key=|room| room.id.clone()
+                                    children=move |room| {
+                                        let state_text = match room.state {
+                                            RoomState::Waiting => "等待中",
+                                            RoomState::Playing => "游戏中",
+                                            RoomState::Finished => "已结束",
+                                        };
+                                        let state_class = match room.state {
+                                            RoomState::Waiting => styles::state_waiting,
+                                            RoomState::Playing => styles::state_playing,
+                                            RoomState::Finished => styles::state_finished,
+                                        };
+                                        view! {
+                                            <div class=styles::room_item>
+                                                <div class=styles::room_details>
+                                                    <span class=styles::room_name>{room.name.clone()}</span>
+                                                    <span class=styles::room_players>{room.player_num}"/10"</span>
+                                                    <span class=state_class>{state_text}</span>
+                                                </div>
+                                                <button
+                                                    class=styles::join_btn
+                                                    on:click=move |_| {
+                                                        if username.get().trim().is_empty() {
+                                                            set_username_err.set(true);
+                                                        } else {
+                                                            join_room(room.id.clone());
+                                                        }
+                                                    }
+                                                    disabled=move || room.state != RoomState::Waiting || game_state.get() == GameState::Matching
+                                                >
+                                                    "加入"
+                                                </button>
+                                            </div>
+                                        }
+                                    }
+                                />
+                            </div>
+                        </div>
                     </div>
                 </Show>
+
                 <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
 
                   // interact section
