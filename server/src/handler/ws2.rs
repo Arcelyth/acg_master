@@ -79,7 +79,6 @@ pub struct PlayerData {
 pub enum RoomState {
     Waiting,
     Playing,
-    Finished,
 }
 
 #[derive(Clone)]
@@ -89,6 +88,21 @@ pub struct Room {
     pub host: String, // host's id
     pub players: Vec<(Player, PlayerData)>,
     pub data: Option<RoomData>,
+}
+
+impl Room {
+    pub fn reset(&mut self) {
+        self.state = RoomState::Waiting;
+
+        self.data = None;
+
+        for (_, data) in &mut self.players {
+            data.reset = false;
+            data.guess_time = 0;
+            data.is_prepared = false;
+            data.guesses.clear();
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -411,7 +425,7 @@ pub async fn ws(
                                     continue;
                                 };
 
-                                if room.state == RoomState::Finished {
+                                if room.state != RoomState::Playing {
                                     continue;
                                 }
 
@@ -482,7 +496,7 @@ pub async fn ws(
                             if is_correct || is_draw {
                                 let mut rooms = state.rooms.lock().unwrap();
                                 if let Some(room) = rooms.get_mut(&rid) {
-                                    room.state = RoomState::Finished;
+                                    room.state = RoomState::Waiting;
                                     all_guesses = room
                                         .players
                                         .iter()
@@ -533,6 +547,15 @@ pub async fn ws(
                                 for mut s in other_sessions {
                                     let _ = s.text(over_target_msg.clone()).await;
                                 }
+        
+                                // reset
+                                {
+                                    let mut rooms = state.rooms.lock().unwrap();
+
+                                    if let Some(room) = rooms.get_mut(&rid) {
+                                        room.reset();
+                                    }
+                                }
                             } else if is_draw {
                                 let draw_msg = serde_json::to_string(&ServerMsg::Over(
                                     None,
@@ -543,6 +566,15 @@ pub async fn ws(
                                 let _ = sender_session.text(draw_msg.clone()).await;
                                 for mut s in other_sessions {
                                     let _ = s.text(draw_msg.clone()).await;
+                                }
+
+                                // reset
+                                {
+                                    let mut rooms = state.rooms.lock().unwrap();
+
+                                    if let Some(room) = rooms.get_mut(&rid) {
+                                        room.reset();
+                                    }
                                 }
                             }
                         }

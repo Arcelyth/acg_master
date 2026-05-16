@@ -9,9 +9,7 @@ use stylance::import_crate_style;
 import_crate_style!(styles, "./src/pages/styles/multi.module.scss");
 
 use crate::bangumi::anime::*;
-use crate::components::{
-    back_btn::BackBtn, card2::Card2, hide_card::HideCard, hide_card2::HideCard2,
-};
+use crate::components::{back_btn::BackBtn, card2::Card2};
 use crate::config::{Config, Language};
 use crate::ws::*;
 
@@ -248,6 +246,10 @@ pub fn Multi() -> impl IntoView {
 
                     ServerMsg::Start => {
                         set_game_state.set(GameState::Playing);
+                        set_cards.set(Vec::new());
+                        set_winner.set(None);
+                        set_all_guesses.set(HashMap::new());
+                        set_elapsed_seconds.set(0u64);
                     }
                     ServerMsg::CreateRoomOk => {
                         set_game_state.set(GameState::Waiting);
@@ -305,7 +307,7 @@ pub fn Multi() -> impl IntoView {
                         //                            c.entry(name).or_insert_with(Vec::new).push(hide);
                         //                        });
                     }
-                    ServerMsg::Over(winner, all_guesses,  answer) => {
+                    ServerMsg::Over(winner, all_guesses, answer) => {
                         if let Some(winner) = winner.clone() {
                             if winner == username.get() {
                                 set_game_state.set(GameState::Win);
@@ -318,6 +320,14 @@ pub fn Multi() -> impl IntoView {
                         set_all_guesses.set(all_guesses);
                         set_winner.set(winner);
                         set_answer.set(Some(answer));
+                        set_players.update(|p| {
+                            for e in p.values_mut() {
+                                *e = PlayerEntry {
+                                    is_prepared: false,
+                                    guess_time: 0,
+                                }
+                            }
+                        });
                     }
                     ServerMsg::Reset => {
                         set_cards.set(vec![]);
@@ -456,16 +466,6 @@ pub fn Multi() -> impl IntoView {
 
     let is_interaction_disabled = move || game_state.get() != GameState::Playing;
 
-    let reset_game = move |_| {
-        if let Some(tx) = ws_sender.get_value() {
-            let msg = ClientMsg::Reset;
-
-            if let Ok(text) = serde_json::to_string(&msg) {
-                let _ = tx.unbounded_send(Message::Text(text));
-            }
-        }
-    };
-
     let join_room = move |id: String| {
         let name_len = username.get().len();
         if name_len < 1 || name_len > 20 {
@@ -499,6 +499,11 @@ pub fn Multi() -> impl IntoView {
     };
 
     let start_game = move |_| {
+        let all_prepared = players.get_untracked().values().all(|p| p.is_prepared);
+        if !all_prepared {
+            return;
+        }
+
         if let Some(tx) = ws_sender.get_value() {
             let msg = ClientMsg::Start;
             set_game_state.set(GameState::Loading);
@@ -715,41 +720,6 @@ pub fn Multi() -> impl IntoView {
                         </div>
                     </div>
 
-                    <Show when=move || game_state.get() == GameState::Waiting>
-                        <div class=styles::prepare_section>
-                        <button
-                            class=move || if players.get().get(&username.get()).map(|p| p.is_prepared).unwrap_or(false) {
-                                styles::prepare_btn_active
-                            } else {
-                                styles::prepare_btn
-                            }
-                            on:click=prepare>
-                            {move || {
-                                if players.get().get(&username.get()).map(|p| p.is_prepared).unwrap_or(false) {
-                                    "取消准备"
-                                } else {
-                                    "准备就绪"
-                                }
-                            }}
-                        </button>
-                        {
-                            move || {
-                                if is_host.get() {
-                                  view!(
-                                  <div>
-                                      <button
-                                            class=styles::prepare_btn
-                                            on:click=start_game>
-                                            "Start"
-                                        </button></div>
-                                    )
-                                } else {
-                                    view!(<div><div></div></div>)
-                                }
-                            }
-                        }
-                        </div>
-                    </Show>
 
                  <div class=styles::your_answers>
                    <For
@@ -778,6 +748,43 @@ pub fn Multi() -> impl IntoView {
                     </div>
                 </Show>
 
+                   <Show when=move || matches!(game_state.get(), GameState::Waiting | GameState::Win)>
+                        <div class=styles::prepare_section>
+                        <button
+                            class=move || if players.get().get(&username.get()).map(|p| p.is_prepared).unwrap_or(false) {
+                                styles::prepare_btn_active
+                            } else {
+                                styles::prepare_btn
+                            }
+                            on:click=prepare>
+                            { "准备就绪" }
+                        </button>
+                        {
+                            move || {
+                                if is_host.get() {
+                                  view!(
+                                  <div>
+                                      <button
+                                            class=styles::prepare_btn
+                                            on:click=start_game
+                                            disabled=move || {
+                                                !players
+                                                    .get()
+                                                    .values()
+                                                    .all(|p| p.is_prepared)
+                                            }>
+                                            "Start"
+                                        </button>
+                                                                         </div>
+                                    )
+                                } else {
+                                    view!(<div><div></div></div>)
+                                }
+                            }
+                        }
+                        </div>
+                    </Show>
+
                   // the final answer
                    <div class=styles::answer_reveal_section>
                       {move || {
@@ -798,13 +805,6 @@ pub fn Multi() -> impl IntoView {
                                           <h4 class=status_class>{guess_time}/{max_guess}</h4>
                                           <h4 class=status_class>Time: {formatted_time}</h4>
                                         <div class=styles::btn_wrapper>
-                                            <button
-                                                class=styles::reset_btn
-                                                on:click=reset_game
-                                                disabled=send_reset
-                                            >
-                                                {reset_icon}
-                                            </button>
 
                                             <Show
                                                 when=move || send_reset.get()
@@ -835,6 +835,7 @@ pub fn Multi() -> impl IntoView {
                       }}
                       </div>
                      </div>
+
 
                     <Show
                         when=move || {
@@ -898,6 +899,7 @@ pub fn Multi() -> impl IntoView {
                             </table>
                         </div>
                     </Show>
+
                   </Show>
 
             </main>
