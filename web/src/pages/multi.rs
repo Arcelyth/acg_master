@@ -177,7 +177,7 @@ pub fn Multi() -> impl IntoView {
             "等待对方中......",
             "输入消息",
             "发送",
-            "对方已离线",
+            "有人离开了房间",
             "已在列表中",
             "答案",
             "次数用尽",
@@ -195,7 +195,7 @@ pub fn Multi() -> impl IntoView {
             "Waiting for the opponent...",
             "Input message",
             "Send",
-            "The other party is offline",
+            "Someone has left the room",
             "Already in the list",
             "ANSWER",
             "Run out of guess times",
@@ -279,7 +279,7 @@ pub fn Multi() -> impl IntoView {
                             v.push(ChatEntry {
                                 name,
                                 content: m,
-                                is_sys: false
+                                is_sys: false,
                             });
                         });
                     }
@@ -350,7 +350,7 @@ pub fn Multi() -> impl IntoView {
                     ServerMsg::ResetOk => {
                         set_send_reset.set(true);
                     }
-                    ServerMsg::Leave(answer, comp) => {
+                    ServerMsg::Leave(name) => {
                         set_chat_log.update(|v| {
                             v.push(ChatEntry {
                                 name: String::new(),
@@ -358,8 +358,9 @@ pub fn Multi() -> impl IntoView {
                                 is_sys: true,
                             });
                         });
-                        set_answer.set(Some((answer, comp)));
-                        set_game_state.set(GameState::Win);
+                        set_players.update(|p| {
+                            p.remove(&name);
+                        });
                     }
                 }
             }

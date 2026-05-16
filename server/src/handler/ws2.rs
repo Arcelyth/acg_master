@@ -58,7 +58,7 @@ pub enum ServerMsg {
     Prepare(String),           // player's name
     Reset,
     ResetOk,
-    Leave(BangumiSubject, CompareResult), // opponent leave
+    Leave(String), // username
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -670,20 +670,20 @@ pub async fn ws(
             let mut room_empty = false;
 
             if let Some(room) = rooms.get_mut(&rid) {
+                let leave_name = room
+                    .players
+                    .iter()
+                    .find(|p| p.0.id == current_user_id)
+                    .map(|p| p.0.name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string());
+
                 room.players.retain(|p| p.0.id != current_user_id);
+
                 room_empty = room.players.is_empty();
 
                 if !room_empty {
-                    if let Some(data) = &room.data {
-                        let right_comp = compare_anime(&data.answer, &data.answer);
-                        leave_msg = Some(
-                            serde_json::to_string(&ServerMsg::Leave(
-                                data.answer.clone(),
-                                right_comp,
-                            ))
-                            .unwrap(),
-                        );
-                    }
+                    leave_msg = Some(serde_json::to_string(&ServerMsg::Leave(leave_name)).unwrap());
+
                     sessions_to_notify = room.players.iter().map(|p| p.0.session.clone()).collect();
                 }
             }

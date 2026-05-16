@@ -60,7 +60,7 @@ pub enum ServerMsg {
     Prepare(String), // player's name
     Reset,
     ResetOk,
-    Leave(BangumiSubject, CompareResult), // opponent leave
+    Leave(String), // opponent leave
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
