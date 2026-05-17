@@ -46,6 +46,7 @@ pub struct PlayerEntry {
     is_prepared: bool,
     guess_time: usize,
     points: usize,
+    is_host: bool,
 }
 
 #[component]
@@ -246,6 +247,7 @@ pub fn Multi() -> impl IntoView {
                                     is_prepared: false,
                                     guess_time: 0,
                                     points: 0,
+                                    is_host: false,
                                 },
                             );
                             for (name, data) in ps {
@@ -255,6 +257,7 @@ pub fn Multi() -> impl IntoView {
                                         is_prepared: data.is_prepared,
                                         guess_time: 0,
                                         points: data.points,
+                                        is_host: data.is_host,
                                     },
                                 );
                             }
@@ -271,6 +274,7 @@ pub fn Multi() -> impl IntoView {
                                     is_prepared: false,
                                     guess_time: 0,
                                     points: 0,
+                                    is_host: false,
                                 },
                             );
                             *p = new;
@@ -281,6 +285,7 @@ pub fn Multi() -> impl IntoView {
                         set_game_state.set(GameState::Playing);
                         set_cards.set(Vec::new());
                         set_winner.set(None);
+                        set_guess_time.set(0);
                         set_all_guesses.set(HashMap::new());
                         set_elapsed_seconds.set(0u64);
                         set_multi_config.set(conf);
@@ -295,6 +300,7 @@ pub fn Multi() -> impl IntoView {
                                     is_prepared: false,
                                     guess_time: 0,
                                     points: 0,
+                                    is_host: true,
                                 },
                             );
                         });
@@ -591,22 +597,42 @@ pub fn Multi() -> impl IntoView {
                                 </tr>
                             </thead>
                             <tbody>
-                                {move || {
-                                    let mut p_list: Vec<_> = players.get().into_iter().collect();
-                                    p_list.sort_by(|a, b| a.0.cmp(&b.0));
-                                    p_list.into_iter().map(|(name, entry)| {
-                                        let status = if entry.is_prepared { texts().18.0 } else { texts().18.1 };
-                                        let st_class = if entry.is_prepared { styles::status_ready } else { styles::status_unready };
-                                        view! {
-                                            <tr class=styles::tr_row>
-                                                <td class=styles::td_cell>{name}</td>
-                                                <td class=styles::td_cell><span class=st_class>{status}</span></td>
-                                                <td class=styles::td_cell><span>{entry.guess_time}</span></td>
-                                                <td class=styles::td_cell><span>{entry.points}</span></td>
-                                            </tr>
-                                        }
-                                    }).collect_view()
-                                }}
+    {move || {
+                let mut p_list: Vec<_> = players.get().into_iter().collect();
+                p_list.sort_by(|a, b| a.0.cmp(&b.0));
+                
+                let current_my_name = username.get(); 
+
+                p_list.into_iter().map(|(name, entry)| {
+                    let status = if entry.is_prepared { texts().18.0 } else { texts().18.1 };
+                    let st_class = if entry.is_prepared { styles::status_ready } else { styles::status_unready };
+                    
+                    let is_me = name == current_my_name;
+
+                    view! {
+                        <tr class=styles::tr_row>
+                            <td class=styles::td_cell>
+                                <div class=styles::player_name_wrapper>
+                                    <Show when=move || entry.is_host>
+                                        <svg class=styles::crown_icon viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M5 16L3 5L8.5 10L12 4L15.5 10L21 5L19 16H5Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                                            <path d="M5 19H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                        </svg>
+                                    </Show>
+                                    
+                                    <span class=if is_me { styles::name_me } else { styles::name_normal }>
+                                        {name.clone()}
+                                    </span>
+                                </div>
+                            </td>
+                            <td class=styles::td_cell><span class=st_class>{status}</span></td>
+                            <td class=styles::td_cell><span>{entry.guess_time}</span></td>
+                            <td class=styles::td_cell><span>{entry.points}</span></td>
+                        </tr>
+                    }
+                }).collect_view()
+            }}
+
                             </tbody>
                         </table>
                     </div>
@@ -800,7 +826,12 @@ pub fn Multi() -> impl IntoView {
                         <div class=styles::header_content_grid>
                             <div class=styles::col_header_text>{move || texts().15.1}</div>
                             <div class=styles::center_text>{move || texts().15.2}</div>
-                            <div class=styles::center_text>{move || texts().15.3}</div>
+                            <div class=styles::date_header_wrapper>
+                                <div class=styles::center_text>{move || texts().15.3}</div>
+                                <div class=styles::year_subtext>
+                                    {move || multi_config.with(|c| format!("{} - {}", c.start_year, c.end_year))}
+                                </div>
+                            </div>
                             <div class=styles::col_header_text>{move || texts().15.4}</div>
                         </div>
                     </div>

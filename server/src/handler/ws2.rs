@@ -88,6 +88,7 @@ pub struct PlayerData {
     pub is_prepared: bool,
     pub guesses: Vec<String>,
     pub points: usize,
+    pub is_host: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -210,11 +211,13 @@ pub async fn ws(
                                 name: name.clone(),
                                 session: session.clone(),
                             };
+                            let mut pd = PlayerData::default();
+                            pd.is_host = true;
                             let room = Room {
                                 name: room_name.clone(),
                                 state: RoomState::Waiting,
                                 host: user_id.clone(),
-                                players: vec![(player, PlayerData::default())],
+                                players: vec![(player, pd)],
                                 data: None,
                             };
                             let mut rooms = state.rooms.lock().unwrap();

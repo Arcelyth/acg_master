@@ -46,6 +46,7 @@ pub struct PlayerData {
     pub guess_time: usize,
     pub is_prepared: bool,
     pub points: usize,
+    pub is_host: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

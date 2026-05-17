@@ -139,7 +139,7 @@ main {
   border: 0.0625rem solid #eaeaea;
   border-radius: 0.5rem;
   box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.06);
-  box-sizing: border_box;
+  box-sizing: border-box;
   list-style: none;
   z-index: 100;
   display: flex;
@@ -289,10 +289,15 @@ main {
 }
 
 .dup_message {
-  color: #f44336;
-  text-align: center;
-  font-size: 0.8rem;
+  position: absolute;
+  top: 100%;
+  left: 0;
   margin-top: 0.25rem;
+
+  font-size: 0.8rem;
+  color: #f44336;
+
+  white-space: nowrap;
 }
 
 .status_win {
@@ -666,6 +671,21 @@ main {
 
 .center_text {
   text-align: center;
+}
+
+.date_header_wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.year_subtext {
+  font-size: 11px;
+  color: #888888;
+  font-weight: normal;
+  line-height: 1;
 }
 
 .state_waiting {
@@ -1546,4 +1566,27 @@ main {
       }
     }
   }
+}
+
+.player_name_wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  vertical-align: middle;
+}
+
+.crown_icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.name_normal {
+  color: inherit;
+}
+
+.name_me {
+  color: #22c55e;
+  font-weight: 600;
 }
