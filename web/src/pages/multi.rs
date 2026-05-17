@@ -114,7 +114,7 @@ pub fn Multi() -> impl IntoView {
 
     Effect::new(move |_| {
         let state = game_state.get();
-        if state == GameState::Win || state == GameState::Lose {
+        if state == GameState::Win || state == GameState::Lose || state == GameState::Draw {
             set_is_timer_running.set(false);
         }
     });
@@ -210,6 +210,7 @@ pub fn Multi() -> impl IntoView {
             ("准备就绪", "开始"),
             ("猜测次数", "重置以生效", "年份范围", "至"),
             ("和该房间的玩家重名", "名称长度应为1～18", "房间名称长度应为1～20"),
+            "输入你的答案",
         ),
         Language::English => (
             "Input your name",
@@ -236,6 +237,7 @@ pub fn Multi() -> impl IntoView {
             ("Ready", "Start"),
             ("Guess Times", "Reset to apply", "Year Range", "to"),
             ("Having the same name as one player in this room", "The name length should be between 1 and 18", "The room name length should be between 1 and 20"),
+            "Input your answer",
         ),
     };
 
@@ -541,11 +543,6 @@ pub fn Multi() -> impl IntoView {
     let is_interaction_disabled = move || game_state.get() != GameState::Playing;
 
     let join_room = move |id: String| {
-        let name_len = username.get().len();
-        if name_len < 1 || name_len > 20 {
-            return;
-        }
-
         set_join_trigger.set(Some(id));
         connect(());
     };
@@ -771,7 +768,7 @@ pub fn Multi() -> impl IntoView {
                    <div class=styles::interact_section>
                       <div class=styles::search_wrapper>
                          <div class=styles::input_section>
-                              <span> {move || texts().0}: </span>
+                              <span> {move || texts().24}: </span>
 
                               <div class=styles::input_container>
                                   <input

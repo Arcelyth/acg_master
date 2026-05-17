@@ -268,13 +268,16 @@ pub async fn ws(
                         ClientMsg::Join(room_id, name) => {
                             let user_id = current_user_id.clone();
                             let mut err = ErrType::None;
-
+                            if name.trim().len() < 1 || name.len() > 18 {
+                                err = ErrType::InvalidNameLen;
+                            }
                             let result = {
                                 let mut rooms = state.rooms.lock().unwrap();
 
                                 if let Some(room) = rooms.get_mut(&room_id) {
                                     if room.players.len() >= MAX_PLAYER
                                         || room.state != RoomState::Waiting
+                                        || !matches!(err, ErrType::None)
                                     {
                                         None
                                     } else {
@@ -316,14 +319,7 @@ pub async fn ws(
                             };
 
                             match err {
-                                ErrType::DupName => {
-                                    let msg_to_me =
-                                        serde_json::to_string(&ServerMsg::ErrMsg(ErrType::DupName))
-                                            .unwrap();
-
-                                    let _ = session.text(msg_to_me).await;
-                                }
-                                _ => {
+                                ErrType::None => {
                                     if let Some((old_players, others)) = result {
                                         let msg_to_others = serde_json::to_string(
                                             &ServerMsg::OJoinSucc(name.clone()),
@@ -341,6 +337,12 @@ pub async fn ws(
 
                                         let _ = session.text(msg_to_me).await;
                                     }
+                                }
+                                ty => {
+                                    let msg_to_me =
+                                        serde_json::to_string(&ServerMsg::ErrMsg(ty)).unwrap();
+
+                                    let _ = session.text(msg_to_me).await;
                                 }
                             }
                         }
@@ -429,7 +431,13 @@ pub async fn ws(
                             };
 
                             let answer = match fetch_random_anime(sy, ey).await {
-                                Some(a) => a,
+                                Some(a) => {
+                                    println!(
+                                        "Generate answer: {} \n {} \n config: {:?}",
+                                        a.name, a.name_cn, conf
+                                    );
+                                    a
+                                }
                                 None => {
                                     let mut rooms = state.rooms.lock().unwrap();
                                     if let Some(room) = rooms.get_mut(&rid) {
