@@ -13,12 +13,19 @@ use crate::bangumi::anime::*;
 pub enum ClientMsg {
     Join(String, String),       // room_id and username
     CreateRoom(String, String), // room name and creator's name
-    Start,
+    Start(MultiConfig),
     Message(String),
     Guess(BangumiSubject),
     Prepare,
     Reset,
     ILeave, // sender leave
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct MultiConfig {
+    pub max_guess: usize,
+    pub start_year: usize,
+    pub end_year: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -42,7 +49,7 @@ pub struct PlayerData {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
-    Start,
+    Start(MultiConfig),
     CreateRoomOk,
     JoinSucc(Vec<(String, PlayerData)>), // other players' name and data
     OJoinSucc(String),                   // other player's name

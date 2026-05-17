@@ -8,6 +8,13 @@ use uuid::Uuid;
 
 use crate::handler::bangumi::*;
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct MultiConfig {
+    pub max_guess: usize,
+    pub start_year: usize,
+    pub end_year: usize,
+}
+
 #[derive(Clone)]
 pub struct MultiState {
     rooms: Arc<Mutex<HashMap<String, Room>>>,
@@ -27,7 +34,7 @@ impl MultiState {
 pub enum ClientMsg {
     Join(String, String),       // room_id and username
     CreateRoom(String, String), // room name and creator's name
-    Start,
+    Start(MultiConfig),
     Message(String),
     Guess(BangumiSubject),
     Prepare,
@@ -43,7 +50,7 @@ pub struct WsGuessResponse {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
-    Start,
+    Start(MultiConfig),
     CreateRoomOk,
     OJoinSucc(String),                   // other player's name
     JoinSucc(Vec<(String, PlayerData)>), // other players' name and data
@@ -316,7 +323,7 @@ pub async fn ws(
                             }
                         }
 
-                        ClientMsg::Start => {
+                        ClientMsg::Start(conf) => {
                             let uid = &current_user_id;
                             let rid = state.user_room.lock().unwrap().get(uid).cloned();
                             if let Some(rid) = rid {
@@ -330,10 +337,10 @@ pub async fn ws(
                                 };
 
                                 if is_ready {
-                                    if let Some(answer) = fetch_random_anime(1960, 2026).await {
+                                    if let Some(answer) = fetch_random_anime(conf.start_year, conf.end_year).await {
                                         println!(
-                                            "Generate answer: {} \n {}",
-                                            answer.name, answer.name_cn
+                                            "Generate answer: {} \n {} \n config: {:?}",
+                                            answer.name, answer.name_cn, conf
                                         );
                                         let sessions = {
                                             let mut rooms = state.rooms.lock().unwrap();
@@ -342,7 +349,7 @@ pub async fn ws(
                                                     room.state = RoomState::Playing;
                                                     let data = RoomData {
                                                         answer: answer,
-                                                        max_guess: MAX_GUESS,
+                                                        max_guess: conf.max_guess,
                                                     };
                                                     room.data = Some(data);
                                                     Some(
@@ -361,7 +368,7 @@ pub async fn ws(
 
                                         if let Some(sessions) = sessions {
                                             let msg_str =
-                                                serde_json::to_string(&ServerMsg::Start).unwrap();
+                                                serde_json::to_string(&ServerMsg::Start(conf)).unwrap();
                                             for mut s in sessions {
                                                 let _ = s.text(msg_str.clone()).await;
                                             }
