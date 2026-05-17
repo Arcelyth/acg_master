@@ -80,6 +80,7 @@ pub struct PlayerData {
     pub guess_time: usize,
     pub is_prepared: bool,
     pub guesses: Vec<String>,
+    pub points: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -146,7 +147,6 @@ pub async fn get_rooms(
     Ok(HttpResponse::Ok().json(room_list))
 }
 
-const MAX_GUESS: usize = 20;
 const MAX_ROOM: usize = 100;
 const MAX_PLAYER: usize = 10;
 

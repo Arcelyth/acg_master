@@ -44,6 +44,7 @@ pub struct ChatEntry {
 pub struct PlayerEntry {
     is_prepared: bool,
     guess_time: usize,
+    points: usize,
 }
 
 #[component]
@@ -191,7 +192,7 @@ pub fn Multi() -> impl IntoView {
             "次数用尽",
             ("封面", "标题与集数", "评分", "放送日期", "标签"),
             "输入房间名称",
-            ("玩家", "状态", "猜测次数"),
+            ("玩家", "状态", "猜测次数", "得分"),
             ("已准备", "未准备"),
             ("玩家名称不能为空", "房间名称不能为空"),
             ("当前房间数", "等待中", "游戏中", "加入"),
@@ -216,7 +217,7 @@ pub fn Multi() -> impl IntoView {
             "Run out of guess times",
             ("Cover", "Title & Eps", "Rating", "Air Date", "Tags"),
             "Input room name",
-            ("Player", "State", "Guess time"),
+            ("Player", "State", "Guess time", "Score"),
             ("Ready", "Not Ready"),
             ("Player name cannot be empty", "Room name cannot be empty"),
             ("Current Room Count", "Waiting", "In Game", "Join"),
@@ -239,6 +240,7 @@ pub fn Multi() -> impl IntoView {
                                 PlayerEntry {
                                     is_prepared: false,
                                     guess_time: 0,
+                                    points: 0,
                                 },
                             );
                             for (name, data) in ps {
@@ -247,6 +249,7 @@ pub fn Multi() -> impl IntoView {
                                     PlayerEntry {
                                         is_prepared: data.is_prepared,
                                         guess_time: 0,
+                                        points: data.points,
                                     },
                                 );
                             }
@@ -262,6 +265,7 @@ pub fn Multi() -> impl IntoView {
                                 PlayerEntry {
                                     is_prepared: false,
                                     guess_time: 0,
+                                    points: 0,
                                 },
                             );
                             *p = new;
@@ -285,6 +289,7 @@ pub fn Multi() -> impl IntoView {
                                 PlayerEntry {
                                     is_prepared: false,
                                     guess_time: 0,
+                                    points: 0,
                                 },
                             );
                         });
@@ -344,14 +349,18 @@ pub fn Multi() -> impl IntoView {
                             set_game_state.set(GameState::Draw);
                         }
                         set_all_guesses.set(all_guesses);
-                        set_winner.set(winner);
+                        set_winner.set(winner.clone());
                         set_answer.set(Some(answer));
                         set_players.update(|p| {
-                            for e in p.values_mut() {
-                                *e = PlayerEntry {
-                                    is_prepared: false,
-                                    guess_time: 0,
+                            if let Some(w) = winner.clone() {
+                                if let Some(entry) = p.get_mut(&w) {
+                                    entry.points += 1;
                                 }
+                            }
+
+                            for e in p.values_mut() {
+                                e.is_prepared = false;
+                                e.guess_time = 0;
                             }
                         });
                     }
@@ -543,574 +552,576 @@ pub fn Multi() -> impl IntoView {
     };
 
     view! {
-        <ErrorBoundary fallback=|errors| {
-            view! {
-                <h1>"Uh oh! Something went wrong!"</h1>
-                <ul>
-                    {move || errors.get().into_iter().map(|(_, e)| view! { <li>{e.to_string()}</li> }).collect_view()}
-                </ul>
-            }
-        }>
-            <main>
-                <div class=styles::top_section>
-                    <BackBtn />
-                </div>
-
-                <Show when=move || !players.get().is_empty()>
-
-                    <div class=styles::players_table_container>
-                        <table class=styles::players_table>
-                            <thead>
-                                <tr>
-                                    <th class=styles::th_cell>{texts().17.0}</th>
-                                    <th class=styles::th_cell>{texts().17.1}</th>
-                                    <th class=styles::th_cell>{texts().17.2}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {move || {
-                                    let mut p_list: Vec<_> = players.get().into_iter().collect();
-                                    p_list.sort_by(|a, b| a.0.cmp(&b.0));
-                                    p_list.into_iter().map(|(name, entry)| {
-                                        let status = if entry.is_prepared { texts().18.0 } else { texts().18.1 };
-                                        let st_class = if entry.is_prepared { styles::status_ready } else { styles::status_unready };
-                                        view! {
-                                            <tr class=styles::tr_row>
-                                                <td class=styles::td_cell>{name}</td>
-                                                <td class=styles::td_cell><span class=st_class>{status}</span></td>
-                                                <td class=styles::td_cell><span>{entry.guess_time}</span></td>
-                                            </tr>
-                                        }
-                                    }).collect_view()
-                                }}
-                            </tbody>
-                        </table>
-                    </div>
-                </Show>
-                <Show when=move || game_state.get() == GameState::Lobby || game_state.get() == GameState::Matching>
-                    <div class=styles::lobby_container>
-                        <div class=styles::lobby_section>
-                            <div class=styles::input_wrapper>
-                                <input
-                                    class=styles::username_input
-                                    placeholder=texts().0
-                                    bind:value=(username, set_username)
-                                    on:input=move |_| set_username_err.set(false)
-                                />
-                                <Show when=move || username_err.get() fallback=|| ()>
-                                    <span class=styles::error_msg>{texts().19.0}</span>
-                                </Show>
-                            </div>
-                            <div class=styles::input_wrapper>
-                                <input
-                                    class=styles::username_input
-                                    placeholder=texts().16
-                                    bind:value=(room_name, set_room_name)
-                                    on:input=move |_| set_room_name_err.set(false)
-                                />
-                                <Show when=move || room_name_err.get() fallback=|| ()>
-                                    <span class=styles::error_msg>{texts().19.1}</span>
-                                </Show>
-                            </div>
-                            <button
-                                class=styles::match_btn
-                                on:click=move |_| {
-                                    let mut valid = true;
-                                    if username.get().trim().is_empty() {
-                                        set_username_err.set(true);
-                                        valid = false;
-                                    }
-                                    if room_name.get().trim().is_empty() {
-                                        set_room_name_err.set(true);
-                                        valid = false;
-                                    }
-                                    if valid {
-                                        create_room();
-                                    }
-                                }
-                                disabled=move || game_state.get() == GameState::Matching
-                            >
-                                {move || if game_state.get() == GameState::Matching { texts().2 } else { texts().1 }}
-                            </button>
-                        </div>
-
-                        <div class=styles::room_list_section>
-                            <div class=styles::room_header>
-                                {move || format!("{}：{}/100", texts().20.0,rooms.get().len())}
-                            </div>
-                            <div class=styles::room_grid>
-                                <For
-                                    each=move || rooms.get()
-                                    key=|room| room.id.clone()
-                                    children=move |room| {
-                                        let state_text = match room.state {
-                                            RoomState::Waiting => texts().20.1,
-                                            RoomState::Playing => texts().20.2,
-                                        };
-                                        let state_class = match room.state {
-                                            RoomState::Waiting => styles::state_waiting,
-                                            RoomState::Playing => styles::state_playing,
-                                        };
-                                        view! {
-                                            <div class=styles::room_item>
-                                                <div class=styles::room_details>
-                                                    <span class=styles::room_name>{room.name.clone()}</span>
-                                                    <span class=styles::room_players>{room.player_num}"/10"</span>
-                                                    <span class=state_class>{state_text}</span>
-                                                </div>
-                                                <button
-                                                    class=styles::join_btn
-                                                    on:click=move |_| {
-                                                        if username.get().trim().is_empty() {
-                                                            set_username_err.set(true);
-                                                        } else {
-                                                            join_room(room.id.clone());
-                                                        }
-                                                    }
-                                                    disabled=move || room.state != RoomState::Waiting || game_state.get() == GameState::Matching
-                                                >
-                                                    {texts().20.3}
-                                                </button>
-                                            </div>
-                                        }
-                                    }
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </Show>
-
-                <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
-
-                  // interact section
-                   <div class=styles::interact_section>
-                      <div class=styles::search_wrapper>
-                         <div class=styles::input_section>
-                              <span> {move || texts().0}: </span>
-
-                              <div class=styles::input_container>
-                                  <input
-                                      placeholder={move || texts().3}
-                                      type="text"
-                                      disabled=is_interaction_disabled
-                                      bind:value=(user_input, set_user_input)
-                                      on:focus=move |_| set_input_focused.set(true)
-                                      on:blur=move |_| set_input_focused.set(false)
-                                      on:keydown=on_keydown
-                                  />
-                                  {move || {
-                                      if dup.get() {
-                                          view! { <div><span class=styles::dup_message>{move || texts().12}</span></div> }
-                                      } else {
-                                          view! { <div><div style="display:none"></div></div> }
-                                      }
-                                  }}
-
-                                  {move || {
-                                      let items = unique_search_results();
-                                      let focused = input_focused.get();
-                                      let input_val = user_input.get();
-
-                                      if focused && !items.is_empty() && !input_val.is_empty() {
-                                          view! {
-                                              <div>
-                                              <ul class=styles::dropdown_list>
-                                                  <For
-                                                      each=move || items.clone().into_iter().enumerate()
-                                                      key=|(_, item)| item.id.clone()
-                                                      children=move |(i, item)| {
-                                                          let is_selected = move || selected_dropdown_index.get() == i;
-                                                          let name_clone = item.name_cn.clone();
-                                                          view! {
-                                                              <li
-                                                                  class=move || if is_selected() { styles::dropdown_item_active } else { styles::dropdown_item }
-                                                                  on:mousedown=move |ev| ev.prevent_default()
-                                                                  on:click=move |_| {
-                                                                      set_user_input.set(name_clone.clone());
-                                                                      set_selected_dropdown_index.set(i);
-                                                                      send_guess();
-                                                                  }
-                                                              >
-                                                                  {item.name_cn}
-                                                              </li>
-                                                          }
-                                                      }
-                                                  />
-                                              </ul>
-                                              </div>
-                                          }
-                                      } else {
-                                          view! { <div><ul style="display:none"></ul></div> }
-                                      }
-                                  }}
-                              </div>
-                          </div>
-                      </div>
-
-                      <div class=styles::button_section>
-                          // send buttons
-                          <button
-                              disabled=is_interaction_disabled
-                              on:click=move |_| send_guess()
-                          >
-                              {move || texts().6}
-                          </button>
-
-                          </div>
-                      <div class=styles::guess_number>
-                          <span> {guess_time}/{multi_config.get().max_guess} </span>
-                      </div>
-                      <div class=styles::timer>
-                          <span class=styles::timer_text> {formatted_time} </span>
-                      </div>
-                  </div>
-
-                    // all the answers
-                  <div class=styles::display_section>
-                    // the table header
-                    <div class=styles::table_header>
-                        <div class=styles::header_image_placeholder>
-                            {move || texts().15.0}
-                        </div>
-
-                        <div class=styles::header_content_grid>
-                            <div class=styles::col_header_text>{move || texts().15.1}</div>
-                            <div class=styles::center_text>{move || texts().15.2}</div>
-                            <div class=styles::center_text>{move || texts().15.3}</div>
-                            <div class=styles::col_header_text>{move || texts().15.4}</div>
-                        </div>
-                    </div>
-
-
-                 <div class=styles::your_answers>
-                   <For
-                       each=move || cards.get()
-                       key=|(item, _)| item.id.clone()
-                       children=move |(item, comp_res)| {
-                           view! {
-                                   <Card2 info=item comparison=comp_res />
-                               }
-                           }
-                   />
-                 </div>
-
-                <Show when=move || game_state.get() == GameState::Exhausted>
-                    <span class=styles::exhausted>
-                        {move || texts().14}
-                    </span>
-                </Show>
-
-                <Show
-                    when=move || game_state.get() == GameState::Loading
-                    fallback=move || view! { <div /> }
-                >
-                    <div class=styles::loader_wrapper>
-                        <div class=styles::spinner></div>
-                    </div>
-                </Show>
-
-
-         // setting
-          {
-            move || {
-                if is_host.get() {
-                  view!(
-<div>
-            <Show when=move || game_state.get() == GameState::Waiting>
-                <button
-                    class=styles::settings_btn
-                    on:click=move |_| set_is_modal_open.set(true)
-                >
-                    <svg viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                    </svg>
-                </button>
-
-                <Show when=move || is_modal_open.get()>
-                    <div class=styles::modal_overlay on:click=move |_| set_is_modal_open.set(false)>
-                        <div class=styles::modal_content on:click=move |e| e.stop_propagation()>
-                            <button class=styles::close_btn on:click=move |_| set_is_modal_open.set(false)>
-                                <svg viewBox="0 0 24 24">
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                            </button>
-
-                            <div class=styles::setting_item>
-                                <label>{move || texts().22.0}</label>
-                                <div class=styles::slider_wrapper>
-                                    <input
-                                        type="range"
-                                        min="1"
-                                        max="100"
-                                        prop:value=move || multi_config.get().max_guess
-                                        on:input=move |ev| {
-                                            if let Ok(val) = event_target_value(&ev).parse::<usize>() {
-                                                set_multi_config.update(|v| v.max_guess = val);
-                                            }
-                                        }
-                                    />
-                                    <span>{move || multi_config.get().max_guess}</span>
-                                </div>
-                            </div>
-
-                            <div class=styles::setting_item>
-                                <label>{move || texts().22.2}</label>
-                                <div class=styles::year_range_wrapper>
-                                    <input
-                                        type="number"
-                                        class=styles::year_input
-                                        min="1960"
-                                        max=move || multi_config.get().end_year.to_string()
-                                        prop:value=move || multi_config.get().start_year
-                                        on:input=move |ev| {
-                                            if let Ok(val) = event_target_value(&ev).parse::<usize>() {
-                                                set_multi_config.update(|v| v.start_year = val);
-                                            }
-                                        }
-                                    />
-                                    <span>{move || texts().22.3}</span>
-                                    <input
-                                        type="number"
-                                        class=styles::year_input
-                                        min=move || multi_config.get().start_year.to_string()
-                                        max="2026"
-                                        prop:value=move || multi_config.get().end_year
-                                        on:input=move |ev| {
-                                            if let Ok(val) = event_target_value(&ev).parse::<usize>() {
-                                                set_multi_config.update(|v| v.end_year = val);
-                                            }
-                                        }
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </Show>
-            </Show> </div>)
-                    } else {view!(<div><div></div></div>)}  
+            <ErrorBoundary fallback=|errors| {
+                view! {
+                    <h1>"Uh oh! Something went wrong!"</h1>
+                    <ul>
+                        {move || errors.get().into_iter().map(|(_, e)| view! { <li>{e.to_string()}</li> }).collect_view()}
+                    </ul>
                 }
-            }
+            }>
+                <main>
+                    <div class=styles::top_section>
+                        <BackBtn />
+                    </div>
 
+                    <Show when=move || !players.get().is_empty()>
 
-
-                   <Show when=move || matches!(game_state.get(), GameState::Waiting | GameState::Win | GameState::Lose | GameState::Draw)>
-                        <div class=styles::prepare_section>
-                        <button
-                            class=move || if players.get().get(&username.get()).map(|p| p.is_prepared).unwrap_or(false) {
-                                styles::prepare_btn_active
-                            } else {
-                                styles::prepare_btn
-                            }
-                            on:click=prepare>
-                            { texts().21.0 }
-                        </button>
-                        {
-                            move || {
-                                if is_host.get() {
-                                  view!(
-                                  <div>
-                                      <button
-                                            class=styles::prepare_btn
-                                            on:click=start_game
-                                            disabled=move || {
-                                                !players
-                                                    .get()
-                                                    .values()
-                                                    .all(|p| p.is_prepared)
-                                            }>
-                                          {texts().21.1}
-                                        </button>
-                                                                         </div>
-                                    )
-                                } else {
-                                    view!(<div><div></div></div>)
-                                }
-                            }
-                        }
-                        </div>
-                    </Show>
-
-                  // the final answer
-                   <div class=styles::answer_reveal_section>
-                      {move || {
-                          let state = game_state.get();
-                          if state == GameState::Win || state == GameState::Lose || state == GameState::Draw {
-                                let w = winner.get();
-                              let (status_text, status_class) = match state {
-                                  GameState::Win => (format!("{} {}", texts().4, w.unwrap()), styles::status_win),
-                                  GameState::Lose => (format!("{} {}", texts().4, w.unwrap()), styles::status_lose),
-                                  GameState::Draw => (texts().5.to_string(), styles::status_draw),
-                                  _ => ("".to_string(), ""),
-                              };
-
-                              view! {
-                                  <div>
-                                      <div class=styles::reveal_container>
-                                          <h2 class=status_class>{status_text}</h2>
-                                          <h4 class=status_class>{guess_time}/{multi_config.get().max_guess}</h4>
-                                          <h4 class=status_class>Time: {formatted_time}</h4>
-                                        <div class=styles::btn_wrapper>
-
-                                            <Show
-                                                when=move || send_reset.get()
-                                                fallback=|| ()
-                                            >
-                                                <span class=styles::reset_hint>
-                                                    {move || texts().8}
-                                                </span>
-                                            </Show>
-                                        </div>
-                                          <hr class=styles::divider />
-                                          <p class=styles::reveal_text> {move || texts().13} </p>
-
-                                          <Suspense fallback=|| view! { "..." }>
-                                              {move || Suspend::new(async move {
-                                                  match answer.get() {
-                                                      Some(a) => view! {<div> <Card2 info=a.0.clone() comparison=a.1/> </div>},
-                                                      None => view! { <div><span></span> </div> }
-                                                  }
-                                              })}
-                                          </Suspense>
-                                      </div>
-                                  </div>
-                              }
-                          } else {
-                              view! { <div><div style="display:none"></div></div> }
-                          }
-                      }}
-                      </div>
-                     </div>
-
-
-                    <Show
-                        when=move || {
-                            let s = game_state.get();
-                            s == GameState::Win || s == GameState::Lose || s == GameState::Draw
-                        }
-                        fallback=|| ()
-                    >
-                        <div class=styles::guess_history_wrapper>
-                            <table class=styles::guess_history_table>
+                        <div class=styles::players_table_container>
+                            <table class=styles::players_table>
                                 <thead>
                                     <tr>
-                                        <For
-                                            each=move || {
-                                                let mut p: Vec<String> = all_guesses.get().keys().cloned().collect();
-                                                p.sort();
-                                                p
-                                            }
-                                            key=|name| name.clone()
-                                            children=move |name| {
-                                                view! { <th class=styles::guess_th>{name}</th> }
-                                            }
-                                        />
+                                        <th class=styles::th_cell>{texts().17.0}</th>
+                                        <th class=styles::th_cell>{texts().17.1}</th>
+                                        <th class=styles::th_cell>{texts().17.2}</th>
+                                        <th class=styles::th_cell>{texts().17.3}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <For
-                                        each=move || {
-                                            let max_rows = all_guesses.get().values().map(|v| v.len()).max().unwrap_or(0);
-                                            (0..max_rows).collect::<Vec<_>>()
-                                        }
-                                        key=|i| *i
-                                        children=move |row_idx| {
+                                    {move || {
+                                        let mut p_list: Vec<_> = players.get().into_iter().collect();
+                                        p_list.sort_by(|a, b| a.0.cmp(&b.0));
+                                        p_list.into_iter().map(|(name, entry)| {
+                                            let status = if entry.is_prepared { texts().18.0 } else { texts().18.1 };
+                                            let st_class = if entry.is_prepared { styles::status_ready } else { styles::status_unready };
                                             view! {
-                                                <tr class=styles::guess_tr>
-                                                    <For
-                                                        each=move || {
-                                                            let mut p: Vec<String> = all_guesses.get().keys().cloned().collect();
-                                                            p.sort();
-                                                            p
-                                                        }
-                                                        key=|name| name.clone()
-                                                        children=move |name| {
-                                                            let guess = move || {
-                                                                all_guesses.get()
-                                                                    .get(&name)
-                                                                    .and_then(|guesses| guesses.get(row_idx))
-                                                                    .cloned()
-                                                                    .unwrap_or_default()
-                                                            };
-                                                            view! {
-                                                                <td class=styles::guess_td>{guess}</td>
-                                                            }
-                                                        }
-                                                    />
+                                                <tr class=styles::tr_row>
+                                                    <td class=styles::td_cell>{name}</td>
+                                                    <td class=styles::td_cell><span class=st_class>{status}</span></td>
+                                                    <td class=styles::td_cell><span>{entry.guess_time}</span></td>
+                                                    <td class=styles::td_cell><span>{entry.points}</span></td>
                                                 </tr>
                                             }
-                                        }
-                                    />
+                                        }).collect_view()
+                                    }}
                                 </tbody>
                             </table>
                         </div>
                     </Show>
-
-                  </Show>
-
-            </main>
-
-       
-                // chat
-              <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
-                    <div class=styles::chat_panel>
-                        <div class=styles::chat_messages>
-                            {move || {
-                                chat_log.get()
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(_, item)| {
-                                        if item.is_sys {
-                                            view! {
-                                                <div class=styles::chat_item_sys>
-                                                    {item.content.clone()}
-                                                </div>
-                                            }.into_any()
-                                        } else if item.name == username.get() {
-                                            view! {
-                                                <div class=styles::chat_wrapper_me>
-                                                    <div class=styles::chat_item_me>
-                                                        {item.content.clone()}
-                                                    </div>
-                                                </div>
-                                            }.into_any()
-                                        } else {
-                                            view! {
-                                                <div class=styles::chat_wrapper_other>
-                                                    <span class=styles::chat_name>{item.name.clone()}</span>
-                                                    <div class=styles::chat_item_other>
-                                                        {item.content.clone()}
-                                                    </div>
-                                                </div>
-                                            }.into_any()
+                    <Show when=move || game_state.get() == GameState::Lobby || game_state.get() == GameState::Matching>
+                        <div class=styles::lobby_container>
+                            <div class=styles::lobby_section>
+                                <div class=styles::input_wrapper>
+                                    <input
+                                        class=styles::username_input
+                                        placeholder=texts().0
+                                        bind:value=(username, set_username)
+                                        on:input=move |_| set_username_err.set(false)
+                                    />
+                                    <Show when=move || username_err.get() fallback=|| ()>
+                                        <span class=styles::error_msg>{texts().19.0}</span>
+                                    </Show>
+                                </div>
+                                <div class=styles::input_wrapper>
+                                    <input
+                                        class=styles::username_input
+                                        placeholder=texts().16
+                                        bind:value=(room_name, set_room_name)
+                                        on:input=move |_| set_room_name_err.set(false)
+                                    />
+                                    <Show when=move || room_name_err.get() fallback=|| ()>
+                                        <span class=styles::error_msg>{texts().19.1}</span>
+                                    </Show>
+                                </div>
+                                <button
+                                    class=styles::match_btn
+                                    on:click=move |_| {
+                                        let mut valid = true;
+                                        if username.get().trim().is_empty() {
+                                            set_username_err.set(true);
+                                            valid = false;
                                         }
-                                    })
-                                    .collect::<Vec<_>>()
-                            }}
+                                        if room_name.get().trim().is_empty() {
+                                            set_room_name_err.set(true);
+                                            valid = false;
+                                        }
+                                        if valid {
+                                            create_room();
+                                        }
+                                    }
+                                    disabled=move || game_state.get() == GameState::Matching
+                                >
+                                    {move || if game_state.get() == GameState::Matching { texts().2 } else { texts().1 }}
+                                </button>
+                            </div>
+
+                            <div class=styles::room_list_section>
+                                <div class=styles::room_header>
+                                    {move || format!("{}：{}/100", texts().20.0,rooms.get().len())}
+                                </div>
+                                <div class=styles::room_grid>
+                                    <For
+                                        each=move || rooms.get()
+                                        key=|room| room.id.clone()
+                                        children=move |room| {
+                                            let state_text = match room.state {
+                                                RoomState::Waiting => texts().20.1,
+                                                RoomState::Playing => texts().20.2,
+                                            };
+                                            let state_class = match room.state {
+                                                RoomState::Waiting => styles::state_waiting,
+                                                RoomState::Playing => styles::state_playing,
+                                            };
+                                            view! {
+                                                <div class=styles::room_item>
+                                                    <div class=styles::room_details>
+                                                        <span class=styles::room_name>{room.name.clone()}</span>
+                                                        <span class=styles::room_players>{room.player_num}"/10"</span>
+                                                        <span class=state_class>{state_text}</span>
+                                                    </div>
+                                                    <button
+                                                        class=styles::join_btn
+                                                        on:click=move |_| {
+                                                            if username.get().trim().is_empty() {
+                                                                set_username_err.set(true);
+                                                            } else {
+                                                                join_room(room.id.clone());
+                                                            }
+                                                        }
+                                                        disabled=move || room.state != RoomState::Waiting || game_state.get() == GameState::Matching
+                                                    >
+                                                        {texts().20.3}
+                                                    </button>
+                                                </div>
+                                            }
+                                        }
+                                    />
+                                </div>
+                            </div>
                         </div>
-                        <div class=styles::chat_input_row>
-                            <input
-                                class=styles::chat_input
-                                placeholder=texts().9
-                                bind:value=(text, set_text)
-                                disabled=move || game_state.get() == GameState::Matching
-                            />
+                    </Show>
+
+                    <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
+
+                      // interact section
+                       <div class=styles::interact_section>
+                          <div class=styles::search_wrapper>
+                             <div class=styles::input_section>
+                                  <span> {move || texts().0}: </span>
+
+                                  <div class=styles::input_container>
+                                      <input
+                                          placeholder={move || texts().3}
+                                          type="text"
+                                          disabled=is_interaction_disabled
+                                          bind:value=(user_input, set_user_input)
+                                          on:focus=move |_| set_input_focused.set(true)
+                                          on:blur=move |_| set_input_focused.set(false)
+                                          on:keydown=on_keydown
+                                      />
+                                      {move || {
+                                          if dup.get() {
+                                              view! { <div><span class=styles::dup_message>{move || texts().12}</span></div> }
+                                          } else {
+                                              view! { <div><div style="display:none"></div></div> }
+                                          }
+                                      }}
+
+                                      {move || {
+                                          let items = unique_search_results();
+                                          let focused = input_focused.get();
+                                          let input_val = user_input.get();
+
+                                          if focused && !items.is_empty() && !input_val.is_empty() {
+                                              view! {
+                                                  <div>
+                                                  <ul class=styles::dropdown_list>
+                                                      <For
+                                                          each=move || items.clone().into_iter().enumerate()
+                                                          key=|(_, item)| item.id.clone()
+                                                          children=move |(i, item)| {
+                                                              let is_selected = move || selected_dropdown_index.get() == i;
+                                                              let name_clone = item.name_cn.clone();
+                                                              view! {
+                                                                  <li
+                                                                      class=move || if is_selected() { styles::dropdown_item_active } else { styles::dropdown_item }
+                                                                      on:mousedown=move |ev| ev.prevent_default()
+                                                                      on:click=move |_| {
+                                                                          set_user_input.set(name_clone.clone());
+                                                                          set_selected_dropdown_index.set(i);
+                                                                          send_guess();
+                                                                      }
+                                                                  >
+                                                                      {item.name_cn}
+                                                                  </li>
+                                                              }
+                                                          }
+                                                      />
+                                                  </ul>
+                                                  </div>
+                                              }
+                                          } else {
+                                              view! { <div><ul style="display:none"></ul></div> }
+                                          }
+                                      }}
+                                  </div>
+                              </div>
+                          </div>
+
+                          <div class=styles::button_section>
+                              // send buttons
+                              <button
+                                  disabled=is_interaction_disabled
+                                  on:click=move |_| send_guess()
+                              >
+                                  {move || texts().6}
+                              </button>
+
+                              </div>
+                          <div class=styles::guess_number>
+                              <span> {guess_time}/{multi_config.get().max_guess} </span>
+                          </div>
+                          <div class=styles::timer>
+                              <span class=styles::timer_text> {formatted_time} </span>
+                          </div>
+                      </div>
+
+                        // all the answers
+                      <div class=styles::display_section>
+                        // the table header
+                        <div class=styles::table_header>
+                            <div class=styles::header_image_placeholder>
+                                {move || texts().15.0}
+                            </div>
+
+                            <div class=styles::header_content_grid>
+                                <div class=styles::col_header_text>{move || texts().15.1}</div>
+                                <div class=styles::center_text>{move || texts().15.2}</div>
+                                <div class=styles::center_text>{move || texts().15.3}</div>
+                                <div class=styles::col_header_text>{move || texts().15.4}</div>
+                            </div>
+                        </div>
+
+
+                     <div class=styles::your_answers>
+                       <For
+                           each=move || cards.get()
+                           key=|(item, _)| item.id.clone()
+                           children=move |(item, comp_res)| {
+                               view! {
+                                       <Card2 info=item comparison=comp_res />
+                                   }
+                               }
+                       />
+                     </div>
+
+                    <Show when=move || game_state.get() == GameState::Exhausted>
+                        <span class=styles::exhausted>
+                            {move || texts().14}
+                        </span>
+                    </Show>
+
+                    <Show
+                        when=move || game_state.get() == GameState::Loading
+                        fallback=move || view! { <div /> }
+                    >
+                        <div class=styles::loader_wrapper>
+                            <div class=styles::spinner></div>
+                        </div>
+                    </Show>
+
+
+             // setting
+              {
+                move || {
+                    if is_host.get() {
+                      view!(
+    <div>
+                <Show when=move || game_state.get() == GameState::Waiting>
+                    <button
+                        class=styles::settings_btn
+                        on:click=move |_| set_is_modal_open.set(true)
+                    >
+                        <svg viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </button>
+
+                    <Show when=move || is_modal_open.get()>
+                        <div class=styles::modal_overlay on:click=move |_| set_is_modal_open.set(false)>
+                            <div class=styles::modal_content on:click=move |e| e.stop_propagation()>
+                                <button class=styles::close_btn on:click=move |_| set_is_modal_open.set(false)>
+                                    <svg viewBox="0 0 24 24">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+
+                                <div class=styles::setting_item>
+                                    <label>{move || texts().22.0}</label>
+                                    <div class=styles::slider_wrapper>
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="100"
+                                            prop:value=move || multi_config.get().max_guess
+                                            on:input=move |ev| {
+                                                if let Ok(val) = event_target_value(&ev).parse::<usize>() {
+                                                    set_multi_config.update(|v| v.max_guess = val);
+                                                }
+                                            }
+                                        />
+                                        <span>{move || multi_config.get().max_guess}</span>
+                                    </div>
+                                </div>
+
+                                <div class=styles::setting_item>
+                                    <label>{move || texts().22.2}</label>
+                                    <div class=styles::year_range_wrapper>
+                                        <input
+                                            type="number"
+                                            class=styles::year_input
+                                            min="1960"
+                                            max=move || multi_config.get().end_year.to_string()
+                                            prop:value=move || multi_config.get().start_year
+                                            on:input=move |ev| {
+                                                if let Ok(val) = event_target_value(&ev).parse::<usize>() {
+                                                    set_multi_config.update(|v| v.start_year = val);
+                                                }
+                                            }
+                                        />
+                                        <span>{move || texts().22.3}</span>
+                                        <input
+                                            type="number"
+                                            class=styles::year_input
+                                            min=move || multi_config.get().start_year.to_string()
+                                            max="2026"
+                                            prop:value=move || multi_config.get().end_year
+                                            on:input=move |ev| {
+                                                if let Ok(val) = event_target_value(&ev).parse::<usize>() {
+                                                    set_multi_config.update(|v| v.end_year = val);
+                                                }
+                                            }
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </Show>
+                </Show> </div>)
+                        } else {view!(<div><div></div></div>)}
+                    }
+                }
+
+
+
+                       <Show when=move || matches!(game_state.get(), GameState::Waiting | GameState::Win | GameState::Lose | GameState::Draw)>
+                            <div class=styles::prepare_section>
                             <button
-                                class=styles::chat_send
-                                on:click=send_text
-                                disabled=move || game_state.get() == GameState::Matching
-                            >
-                                {texts().10}
+                                class=move || if players.get().get(&username.get()).map(|p| p.is_prepared).unwrap_or(false) {
+                                    styles::prepare_btn_active
+                                } else {
+                                    styles::prepare_btn
+                                }
+                                on:click=prepare>
+                                { texts().21.0 }
                             </button>
+                            {
+                                move || {
+                                    if is_host.get() {
+                                      view!(
+                                      <div>
+                                          <button
+                                                class=styles::prepare_btn
+                                                on:click=start_game
+                                                disabled=move || {
+                                                    !players
+                                                        .get()
+                                                        .values()
+                                                        .all(|p| p.is_prepared)
+                                                }>
+                                              {texts().21.1}
+                                            </button>
+                                                                             </div>
+                                        )
+                                    } else {
+                                        view!(<div><div></div></div>)
+                                    }
+                                }
+                            }
+                            </div>
+                        </Show>
+
+                      // the final answer
+                       <div class=styles::answer_reveal_section>
+                          {move || {
+                              let state = game_state.get();
+                              if state == GameState::Win || state == GameState::Lose || state == GameState::Draw {
+                                    let w = winner.get();
+                                  let (status_text, status_class) = match state {
+                                      GameState::Win => (format!("{} {}", texts().4, w.unwrap()), styles::status_win),
+                                      GameState::Lose => (format!("{} {}", texts().4, w.unwrap()), styles::status_lose),
+                                      GameState::Draw => (texts().5.to_string(), styles::status_draw),
+                                      _ => ("".to_string(), ""),
+                                  };
+
+                                  view! {
+                                      <div>
+                                          <div class=styles::reveal_container>
+                                              <h2 class=status_class>{status_text}</h2>
+                                              <h4 class=status_class>{guess_time}/{multi_config.get().max_guess}</h4>
+                                              <h4 class=status_class>Time: {formatted_time}</h4>
+                                            <div class=styles::btn_wrapper>
+
+                                                <Show
+                                                    when=move || send_reset.get()
+                                                    fallback=|| ()
+                                                >
+                                                    <span class=styles::reset_hint>
+                                                        {move || texts().8}
+                                                    </span>
+                                                </Show>
+                                            </div>
+                                              <hr class=styles::divider />
+                                              <p class=styles::reveal_text> {move || texts().13} </p>
+
+                                              <Suspense fallback=|| view! { "..." }>
+                                                  {move || Suspend::new(async move {
+                                                      match answer.get() {
+                                                          Some(a) => view! {<div> <Card2 info=a.0.clone() comparison=a.1/> </div>},
+                                                          None => view! { <div><span></span> </div> }
+                                                      }
+                                                  })}
+                                              </Suspense>
+                                          </div>
+                                      </div>
+                                  }
+                              } else {
+                                  view! { <div><div style="display:none"></div></div> }
+                              }
+                          }}
+                          </div>
+                         </div>
+
+
+                        <Show
+                            when=move || {
+                                let s = game_state.get();
+                                s == GameState::Win || s == GameState::Lose || s == GameState::Draw
+                            }
+                            fallback=|| ()
+                        >
+                            <div class=styles::guess_history_wrapper>
+                                <table class=styles::guess_history_table>
+                                    <thead>
+                                        <tr>
+                                            <For
+                                                each=move || {
+                                                    let mut p: Vec<String> = all_guesses.get().keys().cloned().collect();
+                                                    p.sort();
+                                                    p
+                                                }
+                                                key=|name| name.clone()
+                                                children=move |name| {
+                                                    view! { <th class=styles::guess_th>{name}</th> }
+                                                }
+                                            />
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <For
+                                            each=move || {
+                                                let max_rows = all_guesses.get().values().map(|v| v.len()).max().unwrap_or(0);
+                                                (0..max_rows).collect::<Vec<_>>()
+                                            }
+                                            key=|i| *i
+                                            children=move |row_idx| {
+                                                view! {
+                                                    <tr class=styles::guess_tr>
+                                                        <For
+                                                            each=move || {
+                                                                let mut p: Vec<String> = all_guesses.get().keys().cloned().collect();
+                                                                p.sort();
+                                                                p
+                                                            }
+                                                            key=|name| name.clone()
+                                                            children=move |name| {
+                                                                let guess = move || {
+                                                                    all_guesses.get()
+                                                                        .get(&name)
+                                                                        .and_then(|guesses| guesses.get(row_idx))
+                                                                        .cloned()
+                                                                        .unwrap_or_default()
+                                                                };
+                                                                view! {
+                                                                    <td class=styles::guess_td>{guess}</td>
+                                                                }
+                                                            }
+                                                        />
+                                                    </tr>
+                                                }
+                                            }
+                                        />
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Show>
+
+                      </Show>
+
+                </main>
+
+
+                    // chat
+                  <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
+                        <div class=styles::chat_panel>
+                            <div class=styles::chat_messages>
+                                {move || {
+                                    chat_log.get()
+                                        .iter()
+                                        .enumerate()
+                                        .map(|(_, item)| {
+                                            if item.is_sys {
+                                                view! {
+                                                    <div class=styles::chat_item_sys>
+                                                        {item.content.clone()}
+                                                    </div>
+                                                }.into_any()
+                                            } else if item.name == username.get() {
+                                                view! {
+                                                    <div class=styles::chat_wrapper_me>
+                                                        <div class=styles::chat_item_me>
+                                                            {item.content.clone()}
+                                                        </div>
+                                                    </div>
+                                                }.into_any()
+                                            } else {
+                                                view! {
+                                                    <div class=styles::chat_wrapper_other>
+                                                        <span class=styles::chat_name>{item.name.clone()}</span>
+                                                        <div class=styles::chat_item_other>
+                                                            {item.content.clone()}
+                                                        </div>
+                                                    </div>
+                                                }.into_any()
+                                            }
+                                        })
+                                        .collect::<Vec<_>>()
+                                }}
+                            </div>
+                            <div class=styles::chat_input_row>
+                                <input
+                                    class=styles::chat_input
+                                    placeholder=texts().9
+                                    bind:value=(text, set_text)
+                                    disabled=move || game_state.get() == GameState::Matching
+                                />
+                                <button
+                                    class=styles::chat_send
+                                    on:click=send_text
+                                    disabled=move || game_state.get() == GameState::Matching
+                                >
+                                    {texts().10}
+                                </button>
+                            </div>
+
+
                         </div>
+                    </Show>
 
-
-                    </div>
-                </Show>
-
-        </ErrorBoundary>
-    }
+            </ErrorBoundary>
+        }
 }
 
 pub fn use_interval<T, F>(interval_millis: T, f: F)
