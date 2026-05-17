@@ -330,7 +330,7 @@ pub fn Single() -> impl IntoView {
 
                         </div>
                     <div class=styles::guess_number>
-                        <span> {guess_time}/{current_config.get().max_guess} </span>
+                        <span> { move || format!("{}/{}", guess_time.get(), current_config.get().max_guess) }</span>
                     </div>
                     <div class=styles::timer>
                         <span class=styles::timer_text> {formatted_time} </span>
@@ -467,7 +467,9 @@ pub fn Single() -> impl IntoView {
                                 <div>
                                     <div class=styles::reveal_container>
                                         <h2 class=status_class>{move || status_text}</h2>
-                                        <h4 class=status_class>{guess_time}/{current_config.get().max_guess}</h4>
+                                        <h4 class=status_class>
+                                            {move || format!("{}/{}", guess_time.get(), current_config.get().max_guess)}
+                                        </h4>
                                         <h4 class=status_class>Time: {formatted_time}</h4>
                                         <button
                                             class=styles::reset_btn
