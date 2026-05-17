@@ -15,6 +15,12 @@ pub struct MultiConfig {
     pub end_year: usize,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ErrType {
+    None,
+    DupName,
+}
+
 #[derive(Clone)]
 pub struct MultiState {
     rooms: Arc<Mutex<HashMap<String, Room>>>,
@@ -66,6 +72,7 @@ pub enum ServerMsg {
     Reset,
     ResetOk,
     Leave(String), // username
+    ErrMsg(ErrType),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -223,6 +230,7 @@ pub async fn ws(
 
                         ClientMsg::Join(room_id, name) => {
                             let user_id = current_user_id.clone();
+                            let mut err = ErrType::None;
 
                             let result = {
                                 let mut rooms = state.rooms.lock().unwrap();
@@ -230,9 +238,13 @@ pub async fn ws(
                                 if let Some(room) = rooms.get_mut(&room_id) {
                                     if room.players.len() >= MAX_PLAYER
                                         || room.players.iter().any(|p| p.0.name == name)
+                                        || room.state == RoomState::Playing
                                     {
                                         None
                                     } else {
+                                        if room.players.iter().any(|p| p.0.name == name) {
+                                            err = ErrType::DupName;
+                                        }
                                         let old_players: Vec<(String, PlayerData)> = room
                                             .players
                                             .iter()
@@ -267,20 +279,33 @@ pub async fn ws(
                                 }
                             };
 
-                            if let Some((old_players, others)) = result {
-                                let msg_to_others =
-                                    serde_json::to_string(&ServerMsg::OJoinSucc(name.clone()))
-                                        .unwrap();
+                            match err {
+                                ErrType::DupName => {
+                                    let msg_to_me =
+                                        serde_json::to_string(&ServerMsg::ErrMsg(ErrType::DupName))
+                                            .unwrap();
 
-                                for mut s in others {
-                                    let _ = s.text(msg_to_others.clone()).await;
+                                    let _ = session.text(msg_to_me).await;
                                 }
-
-                                let msg_to_me =
-                                    serde_json::to_string(&ServerMsg::JoinSucc(old_players))
+                                _ => {
+                                    if let Some((old_players, others)) = result {
+                                        let msg_to_others = serde_json::to_string(
+                                            &ServerMsg::OJoinSucc(name.clone()),
+                                        )
                                         .unwrap();
 
-                                let _ = session.text(msg_to_me).await;
+                                        for mut s in others {
+                                            let _ = s.text(msg_to_others.clone()).await;
+                                        }
+
+                                        let msg_to_me = serde_json::to_string(
+                                            &ServerMsg::JoinSucc(old_players),
+                                        )
+                                        .unwrap();
+
+                                        let _ = session.text(msg_to_me).await;
+                                    }
+                                }
                             }
                         }
 
@@ -337,7 +362,12 @@ pub async fn ws(
                                 };
 
                                 if is_ready {
-                                    if let Some(answer) = fetch_random_anime(conf.start_year, conf.end_year).await {
+                                    let (sy, ey) = if conf.start_year > conf.end_year {
+                                        (1960, 2026)
+                                    } else {
+                                        (conf.start_year, conf.end_year)
+                                    };
+                                    if let Some(answer) = fetch_random_anime(sy, ey).await {
                                         println!(
                                             "Generate answer: {} \n {} \n config: {:?}",
                                             answer.name, answer.name_cn, conf
@@ -368,7 +398,8 @@ pub async fn ws(
 
                                         if let Some(sessions) = sessions {
                                             let msg_str =
-                                                serde_json::to_string(&ServerMsg::Start(conf)).unwrap();
+                                                serde_json::to_string(&ServerMsg::Start(conf))
+                                                    .unwrap();
                                             for mut s in sessions {
                                                 let _ = s.text(msg_str.clone()).await;
                                             }

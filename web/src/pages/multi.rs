@@ -79,6 +79,7 @@ pub fn Multi() -> impl IntoView {
     let (_refresh_trigger, set_refresh_trigger) = signal(0);
     let (answer, set_answer) = signal(None);
     let (send_reset, set_send_reset) = signal(false);
+    let (err_msg, set_err_msg) = signal::<String>(String::new());
 
     let search_results = LocalResource::new(move || bangumi_search(debounced_input.get()));
 
@@ -198,6 +199,7 @@ pub fn Multi() -> impl IntoView {
             ("当前房间数", "等待中", "游戏中", "加入"),
             ("准备就绪", "开始"),
             ("猜测次数", "重置以生效", "年份范围", "至"),
+            "和该房间的玩家重名"
         ),
         Language::English => (
             "Input your name",
@@ -223,6 +225,7 @@ pub fn Multi() -> impl IntoView {
             ("Current Room Count", "Waiting", "In Game", "Join"),
             ("Ready", "Start"),
             ("Guess Times", "Reset to apply", "Year Range", "to"),
+            "Having the same name as one player in this room"
         ),
     };
 
@@ -393,6 +396,15 @@ pub fn Multi() -> impl IntoView {
                         set_players.update(|p| {
                             p.remove(&name);
                         });
+                    }
+                    ServerMsg::ErrMsg(ty) => {
+                        match ty {
+                            ErrType::DupName => {
+                                let msg = texts().23;
+                                set_err_msg.set(msg.to_string());
+                            }
+                            _ => {}
+                        }
                     }
                 }
             }
@@ -769,7 +781,7 @@ pub fn Multi() -> impl IntoView {
 
                               </div>
                           <div class=styles::guess_number>
-                              <span> {guess_time}/{multi_config.get().max_guess} </span>
+                              <span> {move || format!("{}/{}", guess_time.get(), multi_config.get().max_guess)}</span>
                           </div>
                           <div class=styles::timer>
                               <span class=styles::timer_text> {formatted_time} </span>
@@ -826,8 +838,8 @@ pub fn Multi() -> impl IntoView {
                 move || {
                     if is_host.get() {
                       view!(
-    <div>
-                <Show when=move || game_state.get() == GameState::Waiting>
+                <div>
+                <Show when=move || matches!(game_state.get(), GameState::Waiting | GameState::Win | GameState::Lose | GameState::Draw)>
                     <button
                         class=styles::settings_btn
                         on:click=move |_| set_is_modal_open.set(true)
@@ -838,67 +850,7 @@ pub fn Multi() -> impl IntoView {
                         </svg>
                     </button>
 
-                    <Show when=move || is_modal_open.get()>
-                        <div class=styles::modal_overlay on:click=move |_| set_is_modal_open.set(false)>
-                            <div class=styles::modal_content on:click=move |e| e.stop_propagation()>
-                                <button class=styles::close_btn on:click=move |_| set_is_modal_open.set(false)>
-                                    <svg viewBox="0 0 24 24">
-                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                    </svg>
-                                </button>
-
-                                <div class=styles::setting_item>
-                                    <label>{move || texts().22.0}</label>
-                                    <div class=styles::slider_wrapper>
-                                        <input
-                                            type="range"
-                                            min="1"
-                                            max="100"
-                                            prop:value=move || multi_config.get().max_guess
-                                            on:input=move |ev| {
-                                                if let Ok(val) = event_target_value(&ev).parse::<usize>() {
-                                                    set_multi_config.update(|v| v.max_guess = val);
-                                                }
-                                            }
-                                        />
-                                        <span>{move || multi_config.get().max_guess}</span>
-                                    </div>
-                                </div>
-
-                                <div class=styles::setting_item>
-                                    <label>{move || texts().22.2}</label>
-                                    <div class=styles::year_range_wrapper>
-                                        <input
-                                            type="number"
-                                            class=styles::year_input
-                                            min="1960"
-                                            max=move || multi_config.get().end_year.to_string()
-                                            prop:value=move || multi_config.get().start_year
-                                            on:input=move |ev| {
-                                                if let Ok(val) = event_target_value(&ev).parse::<usize>() {
-                                                    set_multi_config.update(|v| v.start_year = val);
-                                                }
-                                            }
-                                        />
-                                        <span>{move || texts().22.3}</span>
-                                        <input
-                                            type="number"
-                                            class=styles::year_input
-                                            min=move || multi_config.get().start_year.to_string()
-                                            max="2026"
-                                            prop:value=move || multi_config.get().end_year
-                                            on:input=move |ev| {
-                                                if let Ok(val) = event_target_value(&ev).parse::<usize>() {
-                                                    set_multi_config.update(|v| v.end_year = val);
-                                                }
-                                            }
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </Show>
+                    
                 </Show> </div>)
                         } else {view!(<div><div></div></div>)}
                     }
@@ -960,7 +912,9 @@ pub fn Multi() -> impl IntoView {
                                       <div>
                                           <div class=styles::reveal_container>
                                               <h2 class=status_class>{status_text}</h2>
-                                              <h4 class=status_class>{guess_time}/{multi_config.get().max_guess}</h4>
+                                              <h4 class=status_class>
+                                            {move || format!("{}/{}", guess_time.get(), multi_config.get().max_guess)}
+                                          </h4>
                                               <h4 class=status_class>Time: {formatted_time}</h4>
                                             <div class=styles::btn_wrapper>
 
@@ -1062,7 +1016,67 @@ pub fn Multi() -> impl IntoView {
 
                 </main>
 
+                <Show when=move || is_modal_open.get()>
+                        <div class=styles::modal_overlay on:click=move |_| set_is_modal_open.set(false)>
+                            <div class=styles::modal_content on:click=move |e| e.stop_propagation()>
+                                <button class=styles::close_btn on:click=move |_| set_is_modal_open.set(false)>
+                                    <svg viewBox="0 0 24 24">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
 
+                                <div class=styles::setting_item>
+                                    <label>{move || texts().22.0}</label>
+                                    <div class=styles::slider_wrapper>
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="100"
+                                            prop:value=move || multi_config.get().max_guess
+                                            on:input=move |ev| {
+                                                if let Ok(val) = event_target_value(&ev).parse::<usize>() {
+                                                    set_multi_config.update(|v| v.max_guess = val);
+                                                }
+                                            }
+                                        />
+                                        <span>{move || multi_config.get().max_guess}</span>
+                                    </div>
+                                </div>
+
+                                <div class=styles::setting_item>
+                                    <label>{move || texts().22.2}</label>
+                                    <div class=styles::year_range_wrapper>
+                                        <input
+                                            type="number"
+                                            class=styles::year_input
+                                            min="1960"
+                                            max=move || multi_config.get().end_year.to_string()
+                                            prop:value=move || multi_config.get().start_year
+                                            on:input=move |ev| {
+                                                if let Ok(val) = event_target_value(&ev).parse::<usize>() {
+                                                    set_multi_config.update(|v| v.start_year = val);
+                                                }
+                                            }
+                                        />
+                                        <span>{move || texts().22.3}</span>
+                                        <input
+                                            type="number"
+                                            class=styles::year_input
+                                            min=move || multi_config.get().start_year.to_string()
+                                            max="2026"
+                                            prop:value=move || multi_config.get().end_year
+                                            on:input=move |ev| {
+                                                if let Ok(val) = event_target_value(&ev).parse::<usize>() {
+                                                    set_multi_config.update(|v| v.end_year = val);
+                                                }
+                                            }
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </Show>
                     // chat
                   <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
                         <div class=styles::chat_panel>

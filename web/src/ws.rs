@@ -68,6 +68,7 @@ pub enum ServerMsg {
     Reset,
     ResetOk,
     Leave(String), // opponent leave
+    ErrMsg(ErrType),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -76,6 +77,12 @@ pub struct RoomInfo {
     pub state: RoomState,
     pub name: String,
     pub player_num: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ErrType {
+    None,
+    DupName,
 }
 
 pub fn connect_ws(

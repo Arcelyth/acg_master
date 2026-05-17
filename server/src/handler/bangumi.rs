@@ -298,7 +298,13 @@ pub async fn start_new_game(
     session: Session,
     config: web::Json<StartGameRequest>,
 ) -> impl Responder {
-    if let Some(subject) = fetch_random_anime(config.start_year, config.end_year).await {
+    let (sy, ey) = if config.start_year > config.end_year {
+        (1960, 2026)
+    } else {
+        (config.start_year, config.end_year)
+    };
+
+    if let Some(subject) = fetch_random_anime(sy, ey).await {
         if session.insert("current_answer", &subject).is_err() {
             return HttpResponse::InternalServerError()
                 .json(serde_json::json!({"error": "Session error"}));
