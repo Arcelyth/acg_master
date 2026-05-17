@@ -62,6 +62,7 @@
   border-radius: 0.5rem;
   margin-bottom: 1rem;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .card_image {
@@ -85,7 +86,7 @@
   grid-template-columns: 12rem 6rem 10rem 1fr;
   gap: 1.25rem;
   flex-grow: 1;
-  min-width: 0;
+  min-width: 0; 
   align-items: flex-start;
   justify-items: center;
 }
@@ -98,7 +99,8 @@
   align-items: center;
   justify-items: center;
   gap: 0.5rem;
-  min-width: 0;
+  min-width: 0; 
+  width: 100%;
 }
 
 .col_tags {
@@ -126,15 +128,14 @@
   border-radius: 0.25rem;
   border: 0.0625rem solid transparent;
   box-sizing: border-box;
+  
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  
   display: inline-flex;
-  width: fit-content;
 }
-
-
 
 .tag_status_correct,
 .status_correct {
@@ -164,7 +165,7 @@
 
 .tooltip_wrapper {
   position: relative;
-  display: flex;
+  display: inline-flex;
   max-width: 100%;
   min-width: 0;
 
@@ -205,12 +206,25 @@
   border-radius: 0.375rem;
   border: 0.0625rem solid transparent;
   box-sizing: border-box;
+  
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
   
   display: inline-flex;
   align-items: center;
   gap: 0.35rem; 
-  width: fit-content;
+}
+
+.status_correct > span,
+.status_almost > span,
+.status_close > span,
+.status_wrong > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .arrow_icon {
@@ -226,12 +240,34 @@
   display: none;
 }
 
-.tooltip_wrapper {
-  position: relative;
-  display: inline-flex;
-  max-width: 100%;
-}
-
 .arrow_container {
   display: none;
+}
+
+@media (max-width: 768px) {
+  .card_container {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .card_image {
+    width: 100%;
+    max-width: 12rem;
+    height: auto;
+    aspect-ratio: 7.8125 / 10.9375;
+  }
+
+  .card_content {
+    grid-template-columns: 1fr;
+    width: 100%;
+    gap: 0.8rem;
+    justify-items: flex-start;
+  }
+
+  .col_names,
+  .col_rating,
+  .col_date {
+    align-items: flex-start;
+  }
 }
