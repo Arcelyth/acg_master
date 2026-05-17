@@ -809,7 +809,93 @@ pub fn Multi() -> impl IntoView {
                     </div>
                 </Show>
 
-                   <Show when=move || matches!(game_state.get(), GameState::Waiting | GameState::Win)>
+
+         // setting
+          {
+            move || {
+                if is_host.get() {
+                  view!(
+<div>
+            <Show when=move || game_state.get() == GameState::Waiting>
+                <button
+                    class=styles::settings_btn
+                    on:click=move |_| set_is_modal_open.set(true)
+                >
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+
+                <Show when=move || is_modal_open.get()>
+                    <div class=styles::modal_overlay on:click=move |_| set_is_modal_open.set(false)>
+                        <div class=styles::modal_content on:click=move |e| e.stop_propagation()>
+                            <button class=styles::close_btn on:click=move |_| set_is_modal_open.set(false)>
+                                <svg viewBox="0 0 24 24">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+
+                            <div class=styles::setting_item>
+                                <label>{move || texts().22.0}</label>
+                                <div class=styles::slider_wrapper>
+                                    <input
+                                        type="range"
+                                        min="1"
+                                        max="100"
+                                        prop:value=move || multi_config.get().max_guess
+                                        on:input=move |ev| {
+                                            if let Ok(val) = event_target_value(&ev).parse::<usize>() {
+                                                set_multi_config.update(|v| v.max_guess = val);
+                                            }
+                                        }
+                                    />
+                                    <span>{move || multi_config.get().max_guess}</span>
+                                </div>
+                            </div>
+
+                            <div class=styles::setting_item>
+                                <label>{move || texts().22.2}</label>
+                                <div class=styles::year_range_wrapper>
+                                    <input
+                                        type="number"
+                                        class=styles::year_input
+                                        min="1960"
+                                        max=move || multi_config.get().end_year.to_string()
+                                        prop:value=move || multi_config.get().start_year
+                                        on:input=move |ev| {
+                                            if let Ok(val) = event_target_value(&ev).parse::<usize>() {
+                                                set_multi_config.update(|v| v.start_year = val);
+                                            }
+                                        }
+                                    />
+                                    <span>{move || texts().22.3}</span>
+                                    <input
+                                        type="number"
+                                        class=styles::year_input
+                                        min=move || multi_config.get().start_year.to_string()
+                                        max="2026"
+                                        prop:value=move || multi_config.get().end_year
+                                        on:input=move |ev| {
+                                            if let Ok(val) = event_target_value(&ev).parse::<usize>() {
+                                                set_multi_config.update(|v| v.end_year = val);
+                                            }
+                                        }
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </Show>
+            </Show> </div>)
+                    } else {view!(<div><div></div></div>)}  
+                }
+            }
+
+
+
+                   <Show when=move || matches!(game_state.get(), GameState::Waiting | GameState::Win | GameState::Lose | GameState::Draw)>
                         <div class=styles::prepare_section>
                         <button
                             class=move || if players.get().get(&username.get()).map(|p| p.is_prepared).unwrap_or(false) {
@@ -965,83 +1051,7 @@ pub fn Multi() -> impl IntoView {
 
             </main>
 
-            // setting
-            <Show when=move || game_state.get() == GameState::Waiting>
-                <button
-                    class=styles::settings_btn
-                    on:click=move |_| set_is_modal_open.set(true)
-                >
-                    <svg viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                    </svg>
-                </button>
-
-                <Show when=move || is_modal_open.get()>
-                    <div class=styles::modal_overlay on:click=move |_| set_is_modal_open.set(false)>
-                        <div class=styles::modal_content on:click=move |e| e.stop_propagation()>
-                            <button class=styles::close_btn on:click=move |_| set_is_modal_open.set(false)>
-                                <svg viewBox="0 0 24 24">
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                            </button>
-
-                            <div class=styles::setting_item>
-                                <label>{move || texts().22.0}</label>
-                                <div class=styles::slider_wrapper>
-                                    <input
-                                        type="range"
-                                        min="1"
-                                        max="100"
-                                        prop:value=move || multi_config.get().max_guess
-                                        on:input=move |ev| {
-                                            if let Ok(val) = event_target_value(&ev).parse::<usize>() {
-                                                set_multi_config.update(|v| v.max_guess = val);
-                                            }
-                                        }
-                                    />
-                                    <span>{move || multi_config.get().max_guess}</span>
-                                </div>
-                            </div>
-
-                            <div class=styles::setting_item>
-                                <label>{move || texts().22.2}</label>
-                                <div class=styles::year_range_wrapper>
-                                    <input
-                                        type="number"
-                                        class=styles::year_input
-                                        min="1960"
-                                        max=move || multi_config.get().end_year.to_string()
-                                        prop:value=move || multi_config.get().start_year
-                                        on:input=move |ev| {
-                                            if let Ok(val) = event_target_value(&ev).parse::<usize>() {
-                                                set_multi_config.update(|v| v.start_year = val);
-                                            }
-                                        }
-                                    />
-                                    <span>{move || texts().22.3}</span>
-                                    <input
-                                        type="number"
-                                        class=styles::year_input
-                                        min=move || multi_config.get().start_year.to_string()
-                                        max="2026"
-                                        prop:value=move || multi_config.get().end_year
-                                        on:input=move |ev| {
-                                            if let Ok(val) = event_target_value(&ev).parse::<usize>() {
-                                                set_multi_config.update(|v| v.end_year = val);
-                                            }
-                                        }
-                                    />
-                                </div>
-                            </div>
-
-                            <div class=styles::note_text>{move || texts().22.1}</div>
-                        </div>
-                    </div>
-                </Show>
-            </Show>
-
+       
                 // chat
               <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
                     <div class=styles::chat_panel>
