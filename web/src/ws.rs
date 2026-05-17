@@ -11,8 +11,8 @@ use crate::bangumi::anime::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientMsg {
-    Join(String, String),       // room_id and username
-    CreateRoom(String, String), // room name and creator's name
+    Join(String, String, Option<String>),       // room_id and username
+    CreateRoom(String, String, Option<String>), // room name and creator's name
     Start(MultiConfig),
     Message(String),
     Guess(BangumiSubject),
@@ -78,6 +78,7 @@ pub struct RoomInfo {
     pub state: RoomState,
     pub name: String,
     pub player_num: usize,
+    pub is_lock: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -85,7 +86,9 @@ pub enum ErrType {
     None,
     DupName,
     InvalidNameLen,
+    InvalidPasswordLen,
     InvalidRoomNameLen,
+    WrongPassword,
 }
 
 pub fn connect_ws(
@@ -150,6 +153,7 @@ pub async fn get_rooms() -> Vec<RoomInfo> {
 pub struct CreateRoomReq {
     pub room_name: String,
     pub user_name: String,
+    pub lock: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -157,7 +161,7 @@ pub struct CreateRoomRes {
     pub room_id: String,
 }
 
-pub async fn create_a_room(room_name: String, user_name: String) -> bool {
+pub async fn create_a_room(room_name: String, user_name: String, lock: Option<String>) -> bool {
     let client = Client::new();
 
     let url = if cfg!(debug_assertions) {
@@ -169,6 +173,7 @@ pub async fn create_a_room(room_name: String, user_name: String) -> bool {
     let req = CreateRoomReq {
         room_name,
         user_name,
+        lock,
     };
 
     let res = client

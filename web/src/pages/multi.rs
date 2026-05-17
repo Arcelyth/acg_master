@@ -93,7 +93,7 @@ pub fn Multi() -> impl IntoView {
 
     let (rooms, set_rooms) = signal::<Vec<RoomInfo>>(vec![]);
     let (players, set_players) = signal::<HashMap<String, PlayerEntry>>(HashMap::new());
-    let (join_trigger, set_join_trigger) = signal::<Option<String>>(None);
+    let (join_trigger, set_join_trigger) = signal::<Option<(String, Option<String>)>>(None);
     let (create_trigger, set_create_trigger) = signal::<Option<String>>(None);
     let (is_host, set_is_host) = signal::<bool>(false);
     let (winner, set_winner) = signal::<Option<String>>(None);
@@ -102,6 +102,15 @@ pub fn Multi() -> impl IntoView {
     let (room_name_err, set_room_name_err) = create_signal(false);
     let (is_modal_open, set_is_modal_open) = signal::<bool>(false);
     let (popup_open, set_popup_open) = signal::<bool>(false);
+
+    // password
+    let (use_password, set_use_password) = create_signal(false);
+    let (password, set_password) = create_signal(String::new());
+    let (password_err, set_password_err) = create_signal(false);
+
+    let (show_pwd_popup, set_show_pwd_popup) = signal(false);
+    let (room_pwd, set_room_pwd) = signal(String::new());
+    let (target_room_id, set_target_room_id) = signal(String::new());
 
     // disconnect
     on_cleanup(move || {
@@ -209,8 +218,15 @@ pub fn Multi() -> impl IntoView {
             ("当前房间数", "等待中", "游戏中", "加入"),
             ("准备就绪", "开始"),
             ("猜测次数", "重置以生效", "年份范围", "至"),
-            ("和该房间的玩家重名", "名称长度应为1～18", "房间名称长度应为1～20"),
+            (
+                "和该房间的玩家重名",
+                "名称长度应为1～18",
+                "房间名称长度应为1～20",
+                "密码错误",
+                "密码长度应为1～20",
+            ),
             "输入你的答案",
+            ("房间密码", "请输入房间密码", "关闭", "加入"),
         ),
         Language::English => (
             "Input your name",
@@ -236,8 +252,20 @@ pub fn Multi() -> impl IntoView {
             ("Current Room Count", "Waiting", "In Game", "Join"),
             ("Ready", "Start"),
             ("Guess Times", "Reset to apply", "Year Range", "to"),
-            ("Having the same name as one player in this room", "The name length should be between 1 and 18", "The room name length should be between 1 and 20"),
+            (
+                "Having the same name as one player in this room",
+                "The name length should be between 1 and 18",
+                "The room name length should be between 1 and 20",
+                "Wrong password",
+                "The password length should be between 1 and 20",
+            ),
             "Input your answer",
+            (
+                "Room Password",
+                "Please enter room password",
+                "Close",
+                "Join",
+            ),
         ),
     };
 
@@ -430,7 +458,16 @@ pub fn Multi() -> impl IntoView {
                             set_err_msg.set(msg.to_string());
                             set_popup_open.set(true);
                         }
-
+                        ErrType::WrongPassword => {
+                            let msg = texts().23.3;
+                            set_err_msg.set(msg.to_string());
+                            set_popup_open.set(true);
+                        }
+                        ErrType::InvalidPasswordLen => {
+                            let msg = texts().23.4;
+                            set_err_msg.set(msg.to_string());
+                            set_popup_open.set(true);
+                        }
                         _ => {}
                     },
                 }
@@ -453,7 +490,12 @@ pub fn Multi() -> impl IntoView {
     Effect::new(move |_| {
         if let Some(name) = create_trigger.get() {
             if let Some(tx) = ws_sender.get_value() {
-                let msg = ClientMsg::CreateRoom(name, username.get_untracked());
+                let pwd = if use_password.get() {
+                    Some(password.get())
+                } else {
+                    None
+                };
+                let msg = ClientMsg::CreateRoom(name, username.get_untracked(), pwd);
                 if let Ok(text) = serde_json::to_string(&msg) {
                     let _ = tx.unbounded_send(Message::Text(text));
                     set_create_trigger.set(None);
@@ -542,15 +584,15 @@ pub fn Multi() -> impl IntoView {
 
     let is_interaction_disabled = move || game_state.get() != GameState::Playing;
 
-    let join_room = move |id: String| {
-        set_join_trigger.set(Some(id));
+    let join_room = move |id: String, pwd| {
+        set_join_trigger.set(Some((id, pwd)));
         connect(());
     };
 
     Effect::new(move |_| {
-        if let Some(id) = join_trigger.get() {
+        if let Some((id, pwd)) = join_trigger.get() {
             if let Some(tx) = ws_sender.get_value() {
-                let msg = ClientMsg::Join(id, username.get_untracked());
+                let msg = ClientMsg::Join(id, username.get_untracked(), pwd);
                 if let Ok(text) = serde_json::to_string(&msg) {
                     let _ = tx.unbounded_send(Message::Text(text));
                     set_join_trigger.set(None);
@@ -612,7 +654,7 @@ pub fn Multi() -> impl IntoView {
                                 </tr>
                             </thead>
                             <tbody>
-    {move || {
+            {move || {
                 let mut p_list: Vec<_> = players.get().into_iter().collect();
                 p_list.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -654,29 +696,34 @@ pub fn Multi() -> impl IntoView {
                 </Show>
                 <Show when=move || game_state.get() == GameState::Lobby || game_state.get() == GameState::Matching>
                     <div class=styles::lobby_container>
-                        <div class=styles::lobby_section>
-                            <div class=styles::input_wrapper>
-                                <input
-                                    class=styles::username_input
-                                    placeholder=texts().0
-                                    bind:value=(username, set_username)
-                                    on:input=move |_| set_username_err.set(false)
-                                />
-                                <Show when=move || username_err.get() fallback=|| ()>
-                                    <span class=styles::error_msg>{texts().19.0}</span>
-                                </Show>
-                            </div>
-                            <div class=styles::input_wrapper>
-                                <input
-                                    class=styles::username_input
-                                    placeholder=texts().16
-                                    bind:value=(room_name, set_room_name)
-                                    on:input=move |_| set_room_name_err.set(false)
-                                />
-                                <Show when=move || room_name_err.get() fallback=|| ()>
-                                    <span class=styles::error_msg>{texts().19.1}</span>
-                                </Show>
-                            </div>
+
+
+                    <div class=styles::lobby_section>
+                        <div class=styles::input_wrapper>
+                            <input
+                                class=styles::username_input
+                                placeholder=texts().0
+                                bind:value=(username, set_username)
+                                on:input=move |_| set_username_err.set(false)
+                            />
+                            <Show when=move || username_err.get() fallback=|| ()>
+                                <span class=styles::error_msg>{texts().19.0}</span>
+                            </Show>
+                        </div>
+
+                        <div class=styles::input_wrapper>
+                            <input
+                                class=styles::username_input
+                                placeholder=texts().16
+                                bind:value=(room_name, set_room_name)
+                                on:input=move |_| set_room_name_err.set(false)
+                            />
+                            <Show when=move || room_name_err.get() fallback=|| ()>
+                                <span class=styles::error_msg>{texts().19.1}</span>
+                            </Show>
+                        </div>
+
+                        <div class=styles::action_row>
                             <button
                                 class=styles::match_btn
                                 on:click=move |_| {
@@ -689,6 +736,10 @@ pub fn Multi() -> impl IntoView {
                                         set_room_name_err.set(true);
                                         valid = false;
                                     }
+                                    if use_password.get() && password.get().trim().is_empty() {
+                                        set_password_err.set(true);
+                                        valid = false;
+                                    }
                                     if valid {
                                         create_room();
                                     }
@@ -697,11 +748,35 @@ pub fn Multi() -> impl IntoView {
                             >
                                 {move || if game_state.get() == GameState::Matching { texts().2 } else { texts().1 }}
                             </button>
+
+                            <label class=styles::checkbox_label>
+                                <input
+                                    type="checkbox"
+                                    on:change=move |_| set_use_password.update(|v| *v = !*v)
+                                />
+                                <span>"启用密码"</span>
+                            </label>
                         </div>
 
-                        <div class=styles::room_list_section>
+                        <Show when=move || use_password.get() fallback=|| ()>
+                            <div class=styles::input_wrapper>
+                                <input
+                                    type="password"
+                                    class=styles::username_input
+                                    placeholder="请输入密码"
+                                    bind:value=(password, set_password)
+                                    on:input=move |_| set_password_err.set(false)
+                                />
+                                <Show when=move || password_err.get() fallback=|| ()>
+                                    <span class=styles::error_msg>"密码不能为空"</span>
+                                </Show>
+                            </div>
+                        </Show>
+
+                       </div>
+                         <div class=styles::room_list_section>
                             <div class=styles::room_header>
-                                {move || format!("{}：{}/100", texts().20.0,rooms.get().len())}
+                                {move || format!("{}：{}/100", texts().20.0, rooms.get().len())}
                             </div>
                             <button
                                 class=styles::refresh_btn
@@ -736,19 +811,44 @@ pub fn Multi() -> impl IntoView {
                                         view! {
                                             <div class=styles::room_item>
                                                 <div class=styles::room_details>
-                                                    <span class=styles::room_name>{room.name.clone()}</span>
+                                                    <span class=styles::room_name>
+                                                        {room.name.clone()}
+                                                        <Show when=move || room.is_lock fallback=|| ()>
+                                                            <svg
+                                                                class=styles::lock_icon
+                                                                viewBox="0 0 24 24"
+                                                                width="14"
+                                                                height="14"
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                stroke-width="2"
+                                                                stroke-linecap="round"
+                                                                stroke-linejoin="round"
+                                                                style="margin-left: 4px; vertical-align: middle;"
+                                                            >
+                                                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                                            </svg>
+                                                        </Show>
+                                                    </span>
                                                     <span class=styles::room_players>{room.player_num}"/10"</span>
                                                     <span class=state_class>{state_text}</span>
                                                 </div>
                                                 <button
                                                     class=styles::join_btn
-                                                    on:click=move |_| {
-                                                        if username.get().trim().is_empty() {
-                                                            set_username_err.set(true);
-                                                        } else {
-                                                            join_room(room.id.clone());
-                                                        }
-                                                    }
+                                                     on:click=move |_| {
+                                                             if username.get().trim().is_empty() {
+                                                                 set_username_err.set(true);
+                                                             } else {
+                                                                 if room.is_lock {
+                                                                     set_target_room_id.set(room.id.clone());
+                                                                     set_show_pwd_popup.set(true);
+                                                                 } else {
+                                                                     join_room(room.id.clone(), None);
+                                                                 }
+                                                             }
+                                                         }
+
                                                     disabled=move || room.state != RoomState::Waiting || game_state.get() == GameState::Matching
                                                 >
                                                     {texts().20.3}
@@ -759,6 +859,8 @@ pub fn Multi() -> impl IntoView {
                                 />
                             </div>
                         </div>
+
+
                     </div>
                 </Show>
 
@@ -1148,6 +1250,52 @@ pub fn Multi() -> impl IntoView {
                     on_close=move || set_popup_open.set(false)
                 />
             </Show>
+             <Show when=move || show_pwd_popup.get()>
+                 <div
+                     class=styles::pwd_popup_overlay
+                     on:click=move |_| set_show_pwd_popup.set(false)
+                 >
+                     <div
+                         class=styles::pwd_popup
+                         on:click=move |e| e.stop_propagation()
+                     >
+                         <h3>{move || texts().25.0}</h3>
+
+                         <input
+                             type="password"
+                             placeholder=move || texts().25.1
+                             prop:value=move || room_pwd.get()
+                             on:input=move |ev| {
+                                 set_room_pwd.set(event_target_value(&ev));
+                             }
+                         />
+
+                         <div class=styles::pwd_popup_btns>
+                             <button
+                                 on:click=move |_| {
+                                     set_show_pwd_popup.set(false);
+                                 }
+                             >
+                                 {move || texts().25.2}
+                             </button>
+
+                             <button
+                                 on:click=move |_| {
+                                     join_room(
+                                         target_room_id.get(),
+                                         Some(room_pwd.get()),
+                                     );
+
+                                     set_show_pwd_popup.set(false);
+                                     set_room_pwd.set(String::new());
+                                 }
+                             >
+                                 {move || texts().25.3}
+                             </button>
+                         </div>
+                     </div>
+                 </div>
+             </Show>
                 // chat
               <Show when=move || game_state.get() != GameState::Lobby && game_state.get() != GameState::Matching>
                     <div class=styles::chat_panel>

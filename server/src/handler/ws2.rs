@@ -20,7 +20,9 @@ pub enum ErrType {
     None,
     DupName,
     InvalidNameLen,
+    InvalidPasswordLen,
     InvalidRoomNameLen,
+    WrongPassword,
 }
 
 #[derive(Clone)]
@@ -40,8 +42,8 @@ impl MultiState {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientMsg {
-    Join(String, String),       // room_id and username
-    CreateRoom(String, String), // room name and creator's name
+    Join(String, String, Option<String>), // room_id and username
+    CreateRoom(String, String, Option<String>), // room name and creator's name
     Start(MultiConfig),
     Message(String),
     Guess(BangumiSubject),
@@ -107,6 +109,7 @@ pub struct Room {
     pub host: String, // host's id
     pub players: Vec<(Player, PlayerData)>,
     pub data: Option<RoomData>,
+    pub lock: Option<String>,
 }
 
 impl Room {
@@ -130,6 +133,7 @@ pub struct RoomInfo {
     pub name: String,
     pub player_num: usize,
     pub id: String,
+    pub is_lock: bool,
 }
 
 #[derive(Clone)]
@@ -152,6 +156,7 @@ pub async fn get_rooms(
             state: room.state.clone(),
             name: room.name.clone(),
             player_num: room.players.len(),
+            is_lock: room.lock.is_some(),
         })
         .collect();
 
@@ -207,7 +212,7 @@ pub async fn ws(
                         continue;
                     };
                     match client_msg {
-                        ClientMsg::CreateRoom(room_name, name) => {
+                        ClientMsg::CreateRoom(room_name, name, lock) => {
                             // check username's length
                             if name.trim().len() < 1 || name.len() > 18 {
                                 let msg = serde_json::to_string(&ServerMsg::ErrMsg(
@@ -230,6 +235,18 @@ pub async fn ws(
                                 continue;
                             }
 
+                            if let Some(pwd) = lock.clone() {
+                                if pwd.trim().len() < 1 || pwd.len() > 20 {
+                                    let msg = serde_json::to_string(&ServerMsg::ErrMsg(
+                                        ErrType::InvalidPasswordLen,
+                                    ))
+                                    .unwrap();
+
+                                    let _ = session.text(msg).await;
+                                    continue;
+                                }
+                            }
+
                             let user_id = current_user_id.clone();
 
                             let player = Player {
@@ -247,6 +264,7 @@ pub async fn ws(
                                 host: user_id.clone(),
                                 players: vec![(player, pd)],
                                 data: None,
+                                lock,
                             };
 
                             let mut rooms = state.rooms.lock().unwrap();
@@ -265,58 +283,76 @@ pub async fn ws(
                             let _ = session.text(msg_str).await;
                         }
 
-                        ClientMsg::Join(room_id, name) => {
+                        ClientMsg::Join(room_id, name, pwd) => {
                             let user_id = current_user_id.clone();
+
                             let mut err = ErrType::None;
+                            let mut result: Option<(Vec<(String, PlayerData)>, Vec<Session>)> =
+                                None;
+
                             if name.trim().len() < 1 || name.len() > 18 {
                                 err = ErrType::InvalidNameLen;
                             }
-                            let result = {
+
+                            if matches!(err, ErrType::None) {
                                 let mut rooms = state.rooms.lock().unwrap();
 
                                 if let Some(room) = rooms.get_mut(&room_id) {
-                                    if room.players.len() >= MAX_PLAYER
-                                        || room.state != RoomState::Waiting
-                                        || !matches!(err, ErrType::None)
+                                    if room.players.len() < MAX_PLAYER
+                                        && room.state == RoomState::Waiting
                                     {
-                                        None
-                                    } else {
-                                        if room.players.iter().any(|p| p.0.name == name) {
+                                        if let Some(lock_pwd) = &room.lock {
+                                            match &pwd {
+                                                Some(input_pwd) => {
+                                                    if input_pwd != lock_pwd {
+                                                        err = ErrType::WrongPassword;
+                                                    }
+                                                }
+                                                None => {
+                                                    err = ErrType::WrongPassword;
+                                                }
+                                            }
+                                        }
+
+                                        if matches!(err, ErrType::None)
+                                            && room.players.iter().any(|p| p.0.name == name)
+                                        {
                                             err = ErrType::DupName;
                                         }
-                                        let old_players: Vec<(String, PlayerData)> = room
-                                            .players
-                                            .iter()
-                                            .map(|(p, d)| (p.name.clone(), d.clone()))
-                                            .collect();
 
-                                        let new_player = Player {
-                                            id: user_id.clone(),
-                                            name: name.clone(),
-                                            session: session.clone(),
-                                        };
+                                        if matches!(err, ErrType::None) {
+                                            let old_players: Vec<(String, PlayerData)> = room
+                                                .players
+                                                .iter()
+                                                .map(|(p, d)| (p.name.clone(), d.clone()))
+                                                .collect();
 
-                                        room.players.push((new_player, PlayerData::default()));
+                                            let new_player = Player {
+                                                id: user_id.clone(),
+                                                name: name.clone(),
+                                                session: session.clone(),
+                                            };
 
-                                        state
-                                            .user_room
-                                            .lock()
-                                            .unwrap()
-                                            .insert(user_id.clone(), room_id.clone());
+                                            room.players.push((new_player, PlayerData::default()));
 
-                                        let other_sessions: Vec<_> = room
-                                            .players
-                                            .iter()
-                                            .filter(|p| p.0.id != user_id)
-                                            .map(|p| p.0.session.clone())
-                                            .collect();
+                                            state
+                                                .user_room
+                                                .lock()
+                                                .unwrap()
+                                                .insert(user_id.clone(), room_id.clone());
 
-                                        Some((old_players, other_sessions))
+                                            let other_sessions: Vec<_> = room
+                                                .players
+                                                .iter()
+                                                .filter(|p| p.0.id != user_id)
+                                                .map(|p| p.0.session.clone())
+                                                .collect();
+
+                                            result = Some((old_players, other_sessions));
+                                        }
                                     }
-                                } else {
-                                    None
                                 }
-                            };
+                            }
 
                             match err {
                                 ErrType::None => {
@@ -338,6 +374,7 @@ pub async fn ws(
                                         let _ = session.text(msg_to_me).await;
                                     }
                                 }
+
                                 ty => {
                                     let msg_to_me =
                                         serde_json::to_string(&ServerMsg::ErrMsg(ty)).unwrap();
@@ -396,27 +433,20 @@ pub async fn ws(
 
                             let can_start = {
                                 let mut rooms = state.rooms.lock().unwrap();
-
                                 let Some(room) = rooms.get_mut(&rid) else {
                                     return;
                                 };
-
                                 if room.host != uid {
                                     return;
                                 }
-
                                 if room.state != RoomState::Waiting {
                                     return;
                                 }
-
                                 let is_ready = room.players.iter().all(|p| p.1.is_prepared);
-
                                 if !is_ready {
                                     return;
                                 }
-
                                 room.state = RoomState::Starting;
-
                                 true
                             };
 
