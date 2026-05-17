@@ -25,7 +25,6 @@ pub enum ClientMsg {
 pub enum RoomState {
     Waiting,
     Playing,
-    Finished,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

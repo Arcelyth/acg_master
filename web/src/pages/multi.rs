@@ -184,6 +184,12 @@ pub fn Multi() -> impl IntoView {
             "答案",
             "次数用尽",
             ("封面", "标题与集数", "评分", "放送日期", "标签"),
+            "输入房间名称",
+            ("玩家", "状态", "猜测次数"),
+            ("已准备", "未准备"),
+            ("玩家名称不能为空", "房间名称不能为空"),
+            ("当前房间数", "等待中", "游戏中", "加入"),
+            ("准备就绪", "开始"),
         ),
         Language::English => (
             "Input your name",
@@ -202,6 +208,12 @@ pub fn Multi() -> impl IntoView {
             "ANSWER",
             "Run out of guess times",
             ("Cover", "Title & Eps", "Rating", "Air Date", "Tags"),
+            "Input room name",
+            ("Player", "State", "Guess time"),
+            ("Ready", "Not Ready"),
+            ("Player name cannot be empty", "Room name cannot be empty"),
+            ("Current Room Count", "Waiting", "In Game", "Join"),
+            ("Ready", "Start"),
         ),
     };
 
@@ -549,9 +561,9 @@ pub fn Multi() -> impl IntoView {
                         <table class=styles::players_table>
                             <thead>
                                 <tr>
-                                    <th class=styles::th_cell>"玩家"</th>
-                                    <th class=styles::th_cell>"状态"</th>
-                                    <th class=styles::th_cell>"猜测次数"</th>
+                                    <th class=styles::th_cell>{texts().17.0}</th>
+                                    <th class=styles::th_cell>{texts().17.1}</th>
+                                    <th class=styles::th_cell>{texts().17.2}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -559,7 +571,7 @@ pub fn Multi() -> impl IntoView {
                                     let mut p_list: Vec<_> = players.get().into_iter().collect();
                                     p_list.sort_by(|a, b| a.0.cmp(&b.0));
                                     p_list.into_iter().map(|(name, entry)| {
-                                        let status = if entry.is_prepared { "已准备" } else { "未准备" };
+                                        let status = if entry.is_prepared { texts().18.0 } else { texts().18.1 };
                                         let st_class = if entry.is_prepared { styles::status_ready } else { styles::status_unready };
                                         view! {
                                             <tr class=styles::tr_row>
@@ -585,18 +597,18 @@ pub fn Multi() -> impl IntoView {
                                     on:input=move |_| set_username_err.set(false)
                                 />
                                 <Show when=move || username_err.get() fallback=|| ()>
-                                    <span class=styles::error_msg>"用户名不能为空"</span>
+                                    <span class=styles::error_msg>{texts().19.0}</span>
                                 </Show>
                             </div>
                             <div class=styles::input_wrapper>
                                 <input
                                     class=styles::username_input
-                                    placeholder=texts().0
+                                    placeholder=texts().16
                                     bind:value=(room_name, set_room_name)
                                     on:input=move |_| set_room_name_err.set(false)
                                 />
                                 <Show when=move || room_name_err.get() fallback=|| ()>
-                                    <span class=styles::error_msg>"房间名不能为空"</span>
+                                    <span class=styles::error_msg>{texts().19.1}</span>
                                 </Show>
                             </div>
                             <button
@@ -623,7 +635,7 @@ pub fn Multi() -> impl IntoView {
 
                         <div class=styles::room_list_section>
                             <div class=styles::room_header>
-                                {move || format!("当前房间数：{}/100", rooms.get().len())}
+                                {move || format!("{}：{}/100", texts().20.0,rooms.get().len())}
                             </div>
                             <div class=styles::room_grid>
                                 <For
@@ -631,14 +643,12 @@ pub fn Multi() -> impl IntoView {
                                     key=|room| room.id.clone()
                                     children=move |room| {
                                         let state_text = match room.state {
-                                            RoomState::Waiting => "等待中",
-                                            RoomState::Playing => "游戏中",
-                                            RoomState::Finished => "已结束",
+                                            RoomState::Waiting => texts().20.1,
+                                            RoomState::Playing => texts().20.2,
                                         };
                                         let state_class = match room.state {
                                             RoomState::Waiting => styles::state_waiting,
                                             RoomState::Playing => styles::state_playing,
-                                            RoomState::Finished => styles::state_finished,
                                         };
                                         view! {
                                             <div class=styles::room_item>
@@ -658,7 +668,7 @@ pub fn Multi() -> impl IntoView {
                                                     }
                                                     disabled=move || room.state != RoomState::Waiting || game_state.get() == GameState::Matching
                                                 >
-                                                    "加入"
+                                                    {texts().20.3}
                                                 </button>
                                             </div>
                                         }
@@ -807,7 +817,7 @@ pub fn Multi() -> impl IntoView {
                                 styles::prepare_btn
                             }
                             on:click=prepare>
-                            { "准备就绪" }
+                            { texts().21.0 }
                         </button>
                         {
                             move || {
@@ -823,7 +833,7 @@ pub fn Multi() -> impl IntoView {
                                                     .values()
                                                     .all(|p| p.is_prepared)
                                             }>
-                                            "Start"
+                                          {texts().21.1}
                                         </button>
                                                                          </div>
                                     )

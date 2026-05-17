@@ -1,5 +1,5 @@
 .footer {
-  background-color: #C4C4C4;
+  background-color: #c4c4c4;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -7,4 +7,36 @@
   padding: 0.8rem;
   color: black;
   gap: 1.2rem;
+}
+
+.repo_link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666666);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary, #1a1a1a);
+  }
+}
+
+.github_icon {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+:global([data-theme="dark"]) {
+  .footer {
+    color: #a3a3a3;
+
+    &:hover {
+      color: #ffffff;
+    }
+  }
 }
