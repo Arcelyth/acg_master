@@ -11,9 +11,20 @@ pub fn Home() -> impl IntoView {
     let config = use_context::<ReadSignal<Config>>().expect("reader");
 
     let t = move || match config.get().lang {
-        Language::Chinese => ("ACG 高手", "🫵 来看看你是否是动漫膏手 🫵", "单人模式", "对战模式"),
-        Language::English => ("ACGMaster", "🫵 Let's see if you are an anime master 🫵", "Single", "Battle"),
+        Language::Chinese => (
+            "ACG 高手",
+            "🫵 来看看你是否是动漫膏手 🫵",
+            "单人模式",
+            "多人模式",
+        ),
+        Language::English => (
+            "ACGMaster",
+            "🫵 Let's see if you are an anime master 🫵",
+            "Single",
+            "Multi",
+        ),
     };
+
     let intro_text = move || match config.get().lang {
         Language::Chinese => (
             "说明：在特定次数内猜出指定内容（比如:动漫名称)为获胜条件，对于某次猜测给出的信息，",
@@ -30,7 +41,7 @@ pub fn Home() -> impl IntoView {
     };
 
     view! {
-        <main>
+        <main class=styles::main_layout>
             <div class=styles::title_container>
                 <h1 class=styles::main_title>{move || t().0}</h1>
                 <p class=styles::sub_title>{move || t().1}</p>
@@ -45,41 +56,11 @@ pub fn Home() -> impl IntoView {
                <div class=styles::rules>
                     <p>
                         {move || intro_text().0}
-                        <span style="
-                              display: inline-block;
-                              width: 1.2rem;
-                              height: 1.2rem;
-                              border-radius: 0.25rem;
-                              vertical-align: middle;
-                              margin: 0 0.3rem;
-                              background-color: #eef8f2;
-                              color: #277b4c;
-                              border: 0.0625rem solid #d1ebd8;
-                        "> </span>
+                        <span class=styles::match_exact></span>
                         {move || intro_text().1}
-                        <span style="
-                              display: inline-block;
-                              width: 1.2rem;
-                              height: 1.2rem;
-                              border-radius: 0.25rem;
-                              vertical-align: middle;
-                              margin: 0 0.3rem;
-                              background-color: #fff9ed;
-                              color: #9c6c19;
-                              border: 0.0625rem solid #f7e6ca;
-                        "> </span>
+                        <span class=styles::match_partial></span>
                         {move || intro_text().2}
-                        <span style="
-                              display: inline-block;
-                              width: 1.2rem;
-                              height: 1.2rem;
-                              border-radius: 0.25rem;
-                              vertical-align: middle;
-                              margin: 0 0.3rem;
-                              background-color: #eef2f8;
-                              color: #274c7b;
-                              border: 0.0625rem solid #d1e0eb;
-                        "> </span>
+                        <span class=styles::match_related></span>
                         {move || intro_text().3}
                     </p>
                </div>

@@ -84,6 +84,8 @@ pub struct RoomInfo {
 pub enum ErrType {
     None,
     DupName,
+    InvalidNameLen,
+    InvalidRoomNameLen,
 }
 
 pub fn connect_ws(

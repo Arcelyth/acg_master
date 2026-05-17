@@ -141,6 +141,13 @@ pub fn Multi() -> impl IntoView {
         });
     });
 
+    let fetch_rooms = move || {
+        spawn_local(async move {
+            let rooms = get_rooms().await;
+            set_rooms.set(rooms);
+        });
+    };
+
     let formatted_time = move || {
         let s = elapsed_seconds.get();
         format!("{:02}:{:02}", s / 60, s % 60)
@@ -202,7 +209,7 @@ pub fn Multi() -> impl IntoView {
             ("当前房间数", "等待中", "游戏中", "加入"),
             ("准备就绪", "开始"),
             ("猜测次数", "重置以生效", "年份范围", "至"),
-            "和该房间的玩家重名",
+            ("和该房间的玩家重名", "名称长度应为1～18", "房间名称长度应为1～20"),
         ),
         Language::English => (
             "Input your name",
@@ -228,7 +235,7 @@ pub fn Multi() -> impl IntoView {
             ("Current Room Count", "Waiting", "In Game", "Join"),
             ("Ready", "Start"),
             ("Guess Times", "Reset to apply", "Year Range", "to"),
-            "Having the same name as one player in this room",
+            ("Having the same name as one player in this room", "The name length should be between 1 and 18", "The room name length should be between 1 and 20"),
         ),
     };
 
@@ -407,10 +414,21 @@ pub fn Multi() -> impl IntoView {
                     }
                     ServerMsg::ErrMsg(ty) => match ty {
                         ErrType::DupName => {
-                            let msg = texts().23;
+                            let msg = texts().23.0;
                             set_err_msg.set(msg.to_string());
                             set_popup_open.set(true);
                         }
+                        ErrType::InvalidNameLen => {
+                            let msg = texts().23.1;
+                            set_err_msg.set(msg.to_string());
+                            set_popup_open.set(true);
+                        }
+                        ErrType::InvalidRoomNameLen => {
+                            let msg = texts().23.2;
+                            set_err_msg.set(msg.to_string());
+                            set_popup_open.set(true);
+                        }
+
                         _ => {}
                     },
                 }
@@ -600,13 +618,13 @@ pub fn Multi() -> impl IntoView {
     {move || {
                 let mut p_list: Vec<_> = players.get().into_iter().collect();
                 p_list.sort_by(|a, b| a.0.cmp(&b.0));
-                
-                let current_my_name = username.get(); 
+
+                let current_my_name = username.get();
 
                 p_list.into_iter().map(|(name, entry)| {
                     let status = if entry.is_prepared { texts().18.0 } else { texts().18.1 };
                     let st_class = if entry.is_prepared { styles::status_ready } else { styles::status_unready };
-                    
+
                     let is_me = name == current_my_name;
 
                     view! {
@@ -619,7 +637,7 @@ pub fn Multi() -> impl IntoView {
                                             <path d="M5 19H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                         </svg>
                                     </Show>
-                                    
+
                                     <span class=if is_me { styles::name_me } else { styles::name_normal }>
                                         {name.clone()}
                                     </span>
@@ -688,10 +706,27 @@ pub fn Multi() -> impl IntoView {
                             <div class=styles::room_header>
                                 {move || format!("{}：{}/100", texts().20.0,rooms.get().len())}
                             </div>
+                            <button
+                                class=styles::refresh_btn
+                                on:click=move |_| fetch_rooms()
+                            >
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    class=styles::refresh_icon
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M21 12a9 9 0 1 1-3-6.7"/>
+                                    <polyline points="21 3 21 9 15 9"/>
+                                </svg>
+                            </button>
                             <div class=styles::room_grid>
                                 <For
                                     each=move || rooms.get()
-                                    key=|room| room.id.clone()
+                                    key=|room| format!("{}-{:?}", room.id, room.state)
                                     children=move |room| {
                                         let state_text = match room.state {
                                             RoomState::Waiting => texts().20.1,
@@ -1172,7 +1207,7 @@ pub fn Multi() -> impl IntoView {
 
                     </div>
                 </Show>
-      
+
         </ErrorBoundary>
     }
 }

@@ -19,6 +19,8 @@ pub struct MultiConfig {
 pub enum ErrType {
     None,
     DupName,
+    InvalidNameLen,
+    InvalidRoomNameLen,
 }
 
 #[derive(Clone)]
@@ -94,6 +96,7 @@ pub struct PlayerData {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub enum RoomState {
     Waiting,
+    Starting,
     Playing,
 }
 
@@ -205,14 +208,39 @@ pub async fn ws(
                     };
                     match client_msg {
                         ClientMsg::CreateRoom(room_name, name) => {
+                            // check username's length
+                            if name.trim().len() < 1 || name.len() > 18 {
+                                let msg = serde_json::to_string(&ServerMsg::ErrMsg(
+                                    ErrType::InvalidNameLen,
+                                ))
+                                .unwrap();
+
+                                let _ = session.text(msg).await;
+                                continue;
+                            }
+
+                            // check room name's length
+                            if room_name.trim().len() < 1 || room_name.len() > 20 {
+                                let msg = serde_json::to_string(&ServerMsg::ErrMsg(
+                                    ErrType::InvalidRoomNameLen,
+                                ))
+                                .unwrap();
+
+                                let _ = session.text(msg).await;
+                                continue;
+                            }
+
                             let user_id = current_user_id.clone();
+
                             let player = Player {
                                 id: user_id.clone(),
                                 name: name.clone(),
                                 session: session.clone(),
                             };
+
                             let mut pd = PlayerData::default();
                             pd.is_host = true;
+
                             let room = Room {
                                 name: room_name.clone(),
                                 state: RoomState::Waiting,
@@ -220,15 +248,21 @@ pub async fn ws(
                                 players: vec![(player, pd)],
                                 data: None,
                             };
+
                             let mut rooms = state.rooms.lock().unwrap();
                             let room_id = Uuid::new_v4().to_string();
+
                             if rooms.len() < MAX_ROOM {
                                 rooms.insert(room_id.clone(), room);
+
                                 state.user_room.lock().unwrap().insert(user_id, room_id);
                             }
+
                             println!("{} create a room: {}.", name, room_name);
+
                             let msg_str = serde_json::to_string(&ServerMsg::CreateRoomOk).unwrap();
-                            let _ = session.text(msg_str.clone()).await;
+
+                            let _ = session.text(msg_str).await;
                         }
 
                         ClientMsg::Join(room_id, name) => {
@@ -240,7 +274,7 @@ pub async fn ws(
 
                                 if let Some(room) = rooms.get_mut(&room_id) {
                                     if room.players.len() >= MAX_PLAYER
-                                        || room.state == RoomState::Playing
+                                        || room.state != RoomState::Waiting
                                     {
                                         None
                                     } else {
@@ -351,63 +385,84 @@ pub async fn ws(
                         }
 
                         ClientMsg::Start(conf) => {
-                            let uid = &current_user_id;
-                            let rid = state.user_room.lock().unwrap().get(uid).cloned();
-                            if let Some(rid) = rid {
-                                let is_ready = {
-                                    let rooms = state.rooms.lock().unwrap();
-                                    if let Some(room) = rooms.get(&rid) {
-                                        !room.players.iter().any(|p| !p.1.is_prepared)
-                                    } else {
-                                        false
-                                    }
+                            let uid = current_user_id.clone();
+
+                            let rid = state.user_room.lock().unwrap().get(&uid).cloned();
+                            let Some(rid) = rid else {
+                                return;
+                            };
+
+                            let can_start = {
+                                let mut rooms = state.rooms.lock().unwrap();
+
+                                let Some(room) = rooms.get_mut(&rid) else {
+                                    return;
                                 };
 
-                                if is_ready {
-                                    let (sy, ey) = if conf.start_year > conf.end_year {
-                                        (1960, 2026)
-                                    } else {
-                                        (conf.start_year, conf.end_year)
-                                    };
-                                    if let Some(answer) = fetch_random_anime(sy, ey).await {
-                                        println!(
-                                            "Generate answer: {} \n {} \n config: {:?}",
-                                            answer.name, answer.name_cn, conf
-                                        );
-                                        let sessions = {
-                                            let mut rooms = state.rooms.lock().unwrap();
-                                            if let Some(room) = rooms.get_mut(&rid) {
-                                                if room.host == *uid {
-                                                    room.state = RoomState::Playing;
-                                                    let data = RoomData {
-                                                        answer: answer,
-                                                        max_guess: conf.max_guess,
-                                                    };
-                                                    room.data = Some(data);
-                                                    Some(
-                                                        room.players
-                                                            .iter()
-                                                            .map(|p| p.0.session.clone())
-                                                            .collect::<Vec<_>>(),
-                                                    )
-                                                } else {
-                                                    None
-                                                }
-                                            } else {
-                                                None
-                                            }
-                                        };
-
-                                        if let Some(sessions) = sessions {
-                                            let msg_str =
-                                                serde_json::to_string(&ServerMsg::Start(conf))
-                                                    .unwrap();
-                                            for mut s in sessions {
-                                                let _ = s.text(msg_str.clone()).await;
-                                            }
-                                        }
-                                    }
+                                if room.host != uid {
+                                    return;
                                 }
+
+                                if room.state != RoomState::Waiting {
+                                    return;
+                                }
+
+                                let is_ready = room.players.iter().all(|p| p.1.is_prepared);
+
+                                if !is_ready {
+                                    return;
+                                }
+
+                                room.state = RoomState::Starting;
+
+                                true
+                            };
+
+                            if !can_start {
+                                return;
+                            }
+
+                            let (sy, ey) = if conf.start_year > conf.end_year {
+                                (1960, 2026)
+                            } else {
+                                (conf.start_year, conf.end_year)
+                            };
+
+                            let answer = match fetch_random_anime(sy, ey).await {
+                                Some(a) => a,
+                                None => {
+                                    let mut rooms = state.rooms.lock().unwrap();
+                                    if let Some(room) = rooms.get_mut(&rid) {
+                                        room.state = RoomState::Waiting;
+                                    }
+                                    return;
+                                }
+                            };
+
+                            let sessions = {
+                                let mut rooms = state.rooms.lock().unwrap();
+
+                                let Some(room) = rooms.get_mut(&rid) else {
+                                    return;
+                                };
+
+                                room.state = RoomState::Playing;
+
+                                room.data = Some(RoomData {
+                                    answer: answer.clone(),
+                                    max_guess: conf.max_guess,
+                                });
+
+                                room.players
+                                    .iter()
+                                    .map(|p| p.0.session.clone())
+                                    .collect::<Vec<_>>()
+                            };
+
+                            let msg = serde_json::to_string(&ServerMsg::Start(conf)).unwrap();
+
+                            for mut s in sessions {
+                                let _ = s.text(msg.clone()).await;
                             }
                         }
 
