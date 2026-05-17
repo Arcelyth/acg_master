@@ -237,7 +237,6 @@ pub async fn ws(
 
                                 if let Some(room) = rooms.get_mut(&room_id) {
                                     if room.players.len() >= MAX_PLAYER
-                                        || room.players.iter().any(|p| p.0.name == name)
                                         || room.state == RoomState::Playing
                                     {
                                         None
